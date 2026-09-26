@@ -1,0 +1,22 @@
+{
+  "name": "pkmn-brain",
+  "version": "1.0.0",
+  "private": true,
+  "description": "宝可梦外置大脑：打 Pokemon Showdown 天梯时的实时决策面板（代码算事实、Jev 做判断）",
+  "license": "MIT",
+  "engines": { "node": ">=20" },
+  "scripts": {
+    "start": "node start.mjs",
+    "log": "node logview.mjs",
+    "sync-toolkit": "node sync-toolkit.mjs",
+    "verify": "node _verify-config.mjs && node _verify-speed.mjs && node _verify-hazard.mjs && node _verify-oppboost.mjs && node _verify-deadmove.mjs && node verify_firsthit.mjs",
+    "regress": "node regress.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "@pkmn/dex": "^0.10.11",
+    "@pkmn/sim": "^0.10.11",
+    "@smogon/calc": "^0.12.0",
+    "pokemon-showdown": "^0.11.11"
+  }
+}
