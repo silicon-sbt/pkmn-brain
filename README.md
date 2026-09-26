@@ -147,7 +147,7 @@ node _verify-decidelog.mjs # 决策日志端到端（自己在 7799 起服务，
 内联的代价是会漂移，所以留了个同步脚本：
 
 ```bash
-node sync-toolkit.mjs --check   # 只看差多少（逐文件比 git hash，不动文件）
+node sync-toolkit.mjs --check   # 只看差多少（逐个比内容，不动文件）
 node sync-toolkit.mjs           # 刷成上游最新，然后 git commit
 ```
 
