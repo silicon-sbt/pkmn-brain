@@ -1,3 +1,4 @@
+import { loadTeamOr } from './_sample-teams.mjs';
 
 // 自检：把 buildQuestion 生成的【面板文案】原样打出来，不用真 Jev。
 //
@@ -27,9 +28,9 @@ globalThis.fetch = async (url, init) => {
 process.env.TYPESAFE_API_KEY = 'stub';
 
 const { decide } = await import('./serve.mjs');
-const { loadTeam } = await import('../toolkit/tools/lib.mjs');
+const { loadTeam } = await import('./toolkit/tools/lib.mjs');
 
-const mine = loadTeam('../toolkit/teams/ou-c.txt');
+const mine = loadTeamOr('./toolkit/teams/ou-c.txt', 'ou-c');
 const packed = (t) => Teams.pack(t);
 const theirs = Teams.import('Corviknight\nAbility: Pressure\nLevel: 100\nItem: Leftovers\n- Brave Bird\n- Body Press\n- Roost\n- Iron Defense'
   + '\n\nGarganacl\nAbility: Purifying Salt\nLevel: 100\nItem: Leftovers\n- Salt Cure\n- Recover\n- Iron Defense\n- Body Press'

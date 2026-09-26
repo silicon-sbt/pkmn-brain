@@ -18,22 +18,19 @@ line('     宝可梦外接大脑  -  Jev 决策服务');
 line('  ============================================');
 line();
 
-// ── ① 另一半在不在 ────────────────────────────────────────
-// 本仓库【不是自包含的】：中文名、队伍解析、data/、teams/ 全在 pkmn-toolkit。
-// 两个仓库必须克隆成【同级目录】（代码里的相对路径就是按这个写的）。
-// 缺了就必须【当场报错】，否则会在解析队伍时炸在很深的地方，看不出原因。
-const TK = fileURLToPath(new URL('../toolkit/', import.meta.url));
+// ── ① 自带的 toolkit 在不在 ────────────────────────────────
+// 数据、中文名、队伍解析都在 ./toolkit/ —— 它【跟着本仓库一起来】，不用另外克隆。
+// 万一缺了（克隆不完整 / 手动删过），要当场说清楚怎么补，别炸在解析队伍那一层。
+const TK = fileURLToPath(new URL('./toolkit/', import.meta.url));
 if (!existsSync(TK + 'tools/lib.mjs')) {
   die([
-    '  [错误] 找不到另一半：' + TK,
-    '         本仓库依赖 pkmn-toolkit（数据、中文名、队伍解析都在那边）。',
-    '         请把它克隆成【同级目录】：',
-    '           某个目录/',
-    '             ├── pkmn-brain/      ← 本仓库',
-    '             └── pkmn-toolkit/    ← https://github.com/silicon-sbt/pkmn-toolkit',
+    '  [错误] 自带的 toolkit/ 不完整（缺 tools/lib.mjs）：' + TK,
+    '         它正常情况下跟着本仓库一起来。补回来：',
+    '           git -C "' + fileURLToPath(new URL('.', import.meta.url)) + '" checkout -- toolkit',
+    '         或者直接从 Releases 重新下载一份完整仓库。',
   ]);
 }
-line('  [检查] 另一半 toolkit 找到了');
+line('  [检查] 自带的 toolkit 就位');
 
 // ── ② 凭据 ───────────────────────────────────────────────
 // 密钥可能在 config.json、也可能在 .env 或环境变量里 —— 不再只看 .env（那是旧的唯一来源）。

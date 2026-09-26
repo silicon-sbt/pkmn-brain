@@ -1,3 +1,4 @@
+import { loadTeamOr } from './_sample-teams.mjs';
 // 自检：对手的【能力等级】必须进 calc —— 这是 2026-09-26 第三局被推队的直接原因。
 //
 //   node _verify-oppboost.mjs
@@ -10,9 +11,9 @@
 import { readFileSync } from 'node:fs';
 const { stateFromLog } = await import('./log2state.mjs');
 const { buildQuestion } = await import('./harness.mjs');
-const { loadTeam } = await import('../toolkit/tools/lib.mjs');
-const META = JSON.parse(readFileSync('../toolkit/data/meta-sets.json', 'utf8'));
-const mine = loadTeam('../toolkit/teams/ou-a.txt');
+const { loadTeam } = await import('./toolkit/tools/lib.mjs');
+const META = JSON.parse(readFileSync('./toolkit/data/meta-sets.json', 'utf8'));
+const mine = loadTeamOr('./toolkit/teams/ou-a.txt', 'ou-a');
 
 let bad = 0;
 const check = (n, ok, extra) => { if (!ok) bad++; console.log((ok ? '  OK   ' : '  FAIL ') + n + (extra ? '   ' + extra : '')); };

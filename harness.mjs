@@ -14,7 +14,7 @@ import { readFileSync } from 'node:fs';
 const { calculate, Generations, Pokemon, Move, Field } = await import('@smogon/calc');
 const { Dex } = await import('@pkmn/dex');
 const { askJev, askJevMock, jevAvailable } = await import('./jev.mjs');
-const { zhInfo } = await import('../toolkit/tools/lib.mjs');
+const { zhInfo } = await import('./toolkit/tools/lib.mjs');
 // 太晶属性名走项目自己的中文数据源（data/zh-ps.json），不另起一张手写表
 const typeZh = (t) => zhInfo('types', t).zh || t;
 

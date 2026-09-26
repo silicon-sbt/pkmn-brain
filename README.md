@@ -7,6 +7,27 @@
 **分工是刻意的**：代码只负责**算事实**（伤害、几确、免疫、先后手、太晶收益、钉子价值），
 Jev 只负责**做选择**（该攻击还是该强化、对手会不会换人）。算得清的不交给模型，算不清的才交给它。
 
+> 克隆下来就能跑 —— 需要的数据、中文名表、队伍解析都已经在 `toolkit/` 里跟着一起来了。
+
+---
+
+## 三步开始
+
+```bash
+git clone https://github.com/silicon-sbt/pkmn-brain.git
+cd pkmn-brain
+npm install
+```
+
+1. 把 `config.example.json` 复制成 **`config.json`**，填上 `jev.apiKey`
+   （去 <https://console.typesafe.ai/keys> 领；不想用官方也可以改走 Cloudflare 路线）
+2. 双击 **`启动外接大脑.bat`**（Windows）/ `node start.mjs`
+3. 浏览器访问 <http://127.0.0.1:7777/pkmn-brain.user.js> —— Tampermonkey 会自己弹出安装提示
+
+完事。打开 Showdown 打一局，面板自己会出现。
+
+> 不填密钥也能起服务，只是面板不会给建议 —— 它会明确告诉你缺什么，不会装作没事。
+
 ---
 
 ## 它长什么样
@@ -21,39 +42,13 @@ T5 · 厄鬼椪 84%  vs  钢铠鸦 100% · 512ms
 队伍: 正在用的队（request.side.pokemon，6 只由实时数值反解）
 ```
 
-每次决策的**完整面板原文**都会落盘（`logs/`），事后可以直接和 Showdown 的日志逐行对照 ——
+每次决策的**完整面板原文**都会落盘到 `logs/`，事后可以直接和 Showdown 的日志逐行对照 ——
 「它当时为什么建议这个」只有原文能回答。
 
----
-
-## 它依赖 `pkmn-toolkit`（重要）
-
-这个仓库**不是自包含的**。数据和工具在另一半：
-
-> **https://github.com/silicon-sbt/pkmn-toolkit**
-
-两个仓库**必须克隆成同级目录**（代码里的相对路径就是按这个写的）：
-
+```bash
+node logview.mjs              # 列出打过的对局
+node logview.mjs <key>        # 每次决策一节：局面 → Showdown 实际发生 → 面板原文 → 模型回答
 ```
-某个目录/
-  ├── pkmn-brain/      ← 本仓库
-  └── pkmn-toolkit/    ← 另一半（提供中文名、队伍解析、data/、teams/）
-```
-
-依赖方向是**单向**的：`brain → toolkit`。toolkit 里不会 import brain。
-
----
-
-## 快速开始
-
-1. **准备两个仓库**（同级目录，见上）
-2. **填凭据**：把 `config.example.json` 复制成 `config.json`，填 `jev.apiKey`
-   （或 `cfAccountId` + `cfApiToken` 走 Cloudflare 路线）。`config.json` 已 gitignore。
-3. **起服务**：双击 `启动外接大脑.bat`（Windows）/ `node start.mjs`
-4. **装面板**：浏览器访问 `http://127.0.0.1:7777/pkmn-brain.user.js`，Tampermonkey 会自动提示安装
-5. 打开 Showdown 打一局，面板自己会出现
-
-改代码之后：**改了服务端要重启 bat，改了 `.user.js` 要重装脚本。只做一半 = 表现成「改了没生效」。**
 
 ---
 
@@ -77,7 +72,7 @@ T5 · 厄鬼椪 84%  vs  钢铠鸦 100% · 512ms
 [凭据] brain/config.json 的 jev.apiKey
 ```
 
-配置写错不会静默兜底 —— 未知键、类型不对、数值越界都会打到控制台（`node _verify-config.mjs` 有自检）。
+配置写错不会静默兜底 —— 未知键、类型不对、数值越界都会打到控制台。`node _verify-config.mjs` 有自检。
 
 ---
 
@@ -93,7 +88,10 @@ T5 · 厄鬼椪 84%  vs  钢铠鸦 100% · 512ms
 | `config.mjs` | 统一配置加载与校验 |
 | `decide-log.mjs` / `logview.mjs` | 决策日志落盘 / 查看器 |
 | `pkmn-brain.user.js` | Tampermonkey 面板 |
-| `regress.mjs` / `verify_firsthit.mjs` / `_verify-*.mjs` | 各种自检与回归 |
+| `start.mjs` / `启动外接大脑.bat` | 启动器（中文只写在 `.mjs` 里，见下） |
+| `toolkit/` | **内联的离线工具与数据**：中文名表、队伍解析、伤害库、meta 配置、AI 技能 |
+| `sync-toolkit.mjs` | 把 `toolkit/` 刷成上游最新（见文末） |
+| `regress.mjs` / `verify_firsthit.mjs` / `_verify-*.mjs` | 自检与回归 |
 
 ### 自检
 
@@ -106,19 +104,18 @@ node _verify-oppboost.mjs     # 对手能力等级 / 换场清零
 node _verify-deadmove.mjs     # 被锁在一招无效的招式上时只给换人
 node _verify-config.mjs       # 配置优先级与报错可见
 node _verify-decidelog.mjs    # 决策日志端到端
+node _verify-dmg.mjs          # 伤害对拍（calc 预测 vs 引擎实跑）
 ```
 
-除 `regress.mjs` 外都不需要联网；`_verify-*.mjs` 用手写局面，结果确定。
+除 `regress.mjs` 外都不需要联网。自检用的队伍有内置样板，**没有队伍文件也能直接跑**。
 
 ---
 
 ## 已知限制（诚实的）
 
-- **对手配置是推测**：没见过的宝可梦用 Smackdown 使用率最常见配置兜底，不是真配置。
-  面板上会标「按使用率配置估」。
+- **对手配置是推测**：没见过的宝可梦用 Smogon 使用率最常见配置兜底，不是真配置。面板上会标「按使用率配置估」。
 - **速度只能估**：`@smogon/calc` 0.12 不含道具/特性/能力等级，得自己补；补不齐的会写进口径。
-- **驱动能量 / 古代活性 / 夸克充能的【攻击】加成**（×1.3）目前没进伤害计算 ——
-  速度那一档处理了，攻击档还没有。
+- **驱动能量 / 古代活性 / 夸克充能的【攻击】加成**（×1.3）目前没进伤害计算 —— 速度那一档处理了，攻击档还没有。
 - **只算当前回合的威胁**：后排宝可梦这一回合打不到你，所以不算。
 - **会调外部 API**：这不是纯离线工具，需要 Jev 的额度。
 
@@ -135,5 +132,23 @@ node _verify-decidelog.mjs    # 决策日志端到端
 
 ## 免责
 
-这是**辅助你在客户端手动出招**的面板，不代替你点击，也不自动打天梯。
+这是**辅助你在客户端手动出招**的面板：它只显示建议，不代替你点击，也不自动打天梯。
 请遵守 Pokémon Showdown 的服务条款。
+
+---
+
+## 关于 `toolkit/`：它从哪来、怎么更新
+
+为了让你**克隆一个仓库就能跑**，离线工具与数据（中文名表、队伍解析、伤害库、meta 配置、AI 技能）
+已经内联在 `toolkit/` 里 —— 它原本是独立仓库 [**pkmn-toolkit**](https://github.com/silicon-sbt/pkmn-toolkit)。
+两边都是 MIT，随你怎么用。
+
+内联的代价是会漂移，所以留了个同步脚本：
+
+```bash
+node sync-toolkit.mjs --check   # 只看差多少（不动文件）
+node sync-toolkit.mjs           # 刷成上游最新，然后 git commit
+```
+
+**只想要离线工具、不想要对战辅助？** 那就直接去 **[silicon-sbt/pkmn-toolkit](https://github.com/silicon-sbt/pkmn-toolkit)** ——
+那个仓库是自包含的，克隆下来 `npm install` 就能用，不需要这个仓库。

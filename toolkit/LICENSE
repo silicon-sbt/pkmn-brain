@@ -1,0 +1,36 @@
+MIT License
+
+Copyright (c) 2026 silicon-sbt
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+---
+
+## 第三方数据与代码
+
+本仓库的代码以 MIT 发布；但下列内容来自第三方，各自遵循其原始许可：
+
+- **对战引擎与数据**：[@pkmn/sim](https://github.com/pkmn/ps)、[pokemon-showdown](https://github.com/smogon/pokemon-showdown)（MIT）、
+  [@pkmn/dex](https://github.com/pkmn/ps)、[@smogon/calc](https://github.com/smogon/damage-calc)（MIT）
+- **`data/zh-ps.json`**：由 Pokémon Showdown 官方中文数据生成（`tools/fetch-zh-ps.mjs`）
+- **`data/zh-names.json`**：由 [PokeAPI](https://pokeapi.co/) 官方简中译名生成（`tools/fetch-zh.mjs`）
+- **`data/meta-sets.json` / `data/ou-usage.txt`**：来自 [Smogon 使用率统计](https://www.smogon.com/stats/)（`tools/fetch-meta.mjs`）
+
+Pokémon、宝可梦及相关名称为任天堂 / Creatures Inc. / GAME FREAK inc. 的商标。
+本项目为非官方的粉丝工具，与上述公司及 Smogon、Pokémon Showdown 无关联。

@@ -1,0 +1,13 @@
+node_modules/
+*.log
+
+# 队伍文件一律不入库（别人的和自己的都不该进公开仓库）。
+# 新建你的队伍：见 teams/README.md
+teams/*.txt
+
+# 对局辅助产出的个人文件
+battlecard.md
+matchup-sheet.md
+
+# 派生数据，可由 npm run rag:build 重建
+data/rag-index.json

@@ -1,3 +1,4 @@
+import { loadTeamOr } from './_sample-teams.mjs';
 // 自检：决策日志端到端 —— 起一个真服务（放在 7799 端口，不打扰你在用的 7777），
 // 跑几回合真对战，POST 过去，然后检查 logs/ 里有没有落盘、logview 能不能读出来。
 //
@@ -43,8 +44,8 @@ try {
   if (!h) { console.log('❌ 自检服务起不来（端口 ' + PORT + '）'); process.exit(1); }
   console.log('自检服务已起：' + JSON.stringify(h));
 
-  const { loadTeam } = await import('../toolkit/tools/lib.mjs');
-  const mine = loadTeam('../toolkit/teams/ou-c.txt');
+  const { loadTeam } = await import('./toolkit/tools/lib.mjs');
+  const mine = loadTeamOr('./toolkit/teams/ou-c.txt', 'ou-c');
   const theirs = Teams.import([
     'Corviknight @ Leftovers','Ability: Pressure','Level: 100','- Brave Bird','- Body Press','- Roost','- Iron Defense','',
     'Great Tusk @ Leftovers','Ability: Protosynthesis','Level: 100','- Headlong Rush','- Close Combat','- Rapid Spin','- Knock Off','',

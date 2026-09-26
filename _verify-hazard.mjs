@@ -1,3 +1,4 @@
+import { loadTeamOr } from './_sample-teams.mjs';
 // 自检：钉子招必须在面板上带【数字】—— 否则等于不存在。
 //
 //   node _verify-hazard.mjs
@@ -22,8 +23,8 @@ globalThis.fetch = async (url, init) => {
 };
 process.env.TYPESAFE_API_KEY = 'stub';
 const { decide } = await import('./serve.mjs');
-const { loadTeam } = await import('../toolkit/tools/lib.mjs');
-const mine = loadTeam('../toolkit/teams/ou-c.txt');
+const { loadTeam } = await import('./toolkit/tools/lib.mjs');
+const mine = loadTeamOr('./toolkit/teams/ou-c.txt', 'ou-c');
 let bad = 0;
 const check = (n, ok) => { if (!ok) bad++; console.log((ok ? '  OK   ' : '  FAIL ') + n); };
 

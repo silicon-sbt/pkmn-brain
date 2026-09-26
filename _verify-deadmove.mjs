@@ -1,3 +1,4 @@
+import { loadTeamOr } from './_sample-teams.mjs';
 // 自检：讲究道具锁在一招【完全无效】的招上时，面板必须只给换人。
 //
 //   node _verify-deadmove.mjs
@@ -22,9 +23,9 @@ globalThis.fetch = async (url, init) => {
 };
 process.env.TYPESAFE_API_KEY = 'stub';
 const { decide } = await import('./serve.mjs');
-const { loadTeam } = await import('../toolkit/tools/lib.mjs');
+const { loadTeam } = await import('./toolkit/tools/lib.mjs');
 
-const mine = loadTeam('../toolkit/teams/ou-c.txt');
+const mine = loadTeamOr('./toolkit/teams/ou-c.txt', 'ou-c');
 const theirs = Teams.import([
   'Clefable @ Leftovers','Ability: Magic Guard','Level: 100','- Moonblast','- Soft-Boiled','- Calm Mind','- Flamethrower','',
   'Corviknight @ Leftovers','Ability: Pressure','Level: 100','- Brave Bird','- Body Press','- Roost','- Iron Defense','',

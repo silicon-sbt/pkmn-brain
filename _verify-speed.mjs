@@ -1,3 +1,4 @@
+import { loadTeamOr } from './_sample-teams.mjs';
 // 自检：先后手必须算出来、并且当「它更快 + 能打死你」时警告这一手打不出去。
 //
 //   node _verify-speed.mjs
@@ -10,9 +11,9 @@
 import { readFileSync } from 'node:fs';
 const { stateFromLog } = await import('./log2state.mjs');
 const { buildQuestion } = await import('./harness.mjs');
-const { loadTeam } = await import('../toolkit/tools/lib.mjs');
-const META = JSON.parse(readFileSync('../toolkit/data/meta-sets.json', 'utf8'));
-const mine = loadTeam('../toolkit/teams/ou-c.txt');
+const { loadTeam } = await import('./toolkit/tools/lib.mjs');
+const META = JSON.parse(readFileSync('./toolkit/data/meta-sets.json', 'utf8'));
+const mine = loadTeamOr('./toolkit/teams/ou-c.txt', 'ou-c');
 
 let bad = 0;
 const check = (n, ok) => { if (!ok) bad++; console.log((ok ? '  OK   ' : '  FAIL ') + n); };

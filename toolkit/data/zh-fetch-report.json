@@ -1,0 +1,35 @@
+{
+  "unmatched": {
+    "species": [],
+    "moves": [],
+    "abilities": [
+      "asone",
+      "auraguard"
+    ],
+    "items": []
+  },
+  "counts": {
+    "species": {
+      "ps": 1559,
+      "matched": 1559
+    },
+    "moves": {
+      "ps": 953,
+      "matched": 953
+    },
+    "abilities": {
+      "ps": 322,
+      "matched": 320
+    },
+    "items": {
+      "ps": 583,
+      "matched": 583
+    },
+    "types": {
+      "matched": 19
+    },
+    "natures": {
+      "matched": 25
+    }
+  }
+}

@@ -1,0 +1,46 @@
+{
+  "_note": "社区俗称/旧译 -> 官方英文名。PokeAPI 只提供官方译名，而国内对战社区的叫法常与之不同（例：Leftovers 官方『吃剩的东西』，玩家说『剩饭』；Jolly 官方『爽朗』，旧译『开朗』）。只收录高置信度条目，可自由增补。",
+  "items": {
+    "剩饭": "Leftovers",
+    "命玉": "Life Orb",
+    "气腰": "Focus Sash",
+    "专爱头巾": "Choice Band",
+    "专爱眼镜": "Choice Specs",
+    "专爱围巾": "Choice Scarf",
+    "头带": "Choice Band",
+    "眼镜": "Choice Specs",
+    "围巾": "Choice Scarf",
+    "背心": "Assault Vest",
+    "辉石": "Eviolite",
+    "达人带": "Expert Belt",
+    "空贝": "Shell Bell",
+    "大树果": "Sitrus Berry",
+    "巨树果": "Sitrus Berry",
+    "龙牙": "Dragon Fang",
+    "命之玉": "Life Orb",
+    "博识眼镜": "Wise Glasses"
+  },
+  "species": {
+    "地龙": "Garchomp",
+    "班吉拉": "Tyranitar",
+    "火鸡": "Blaziken",
+    "快龙": "Dragonite",
+    "巨金": "Metagross",
+    "电鬼": "Rotom",
+    "大嘴娃": "Mawile",
+    "沙奈朵": "Gardevoir"
+  },
+  "moves": {
+    "十万": "Thunderbolt",
+    "冻拳": "Ice Punch",
+    "火拳": "Fire Punch",
+    "电拳": "Thunder Punch"
+  },
+  "abilities": {},
+  "natures": {
+    "开朗": "Jolly",
+    "保守": "Modest",
+    "沉着": "Calm"
+  },
+  "types": {}
+}

@@ -1,11 +1,12 @@
+import { loadTeamOr } from './_sample-teams.mjs';
 // 伤害对拍：@smogon/calc 的预测 vs @pkmn/sim 引擎的实际伤害分布
 const sim = await import('@pkmn/sim');
 const { Battle, Teams } = sim;
-const { loadTeam } = await import('../toolkit/tools/lib.mjs');
+const { loadTeam } = await import('./toolkit/tools/lib.mjs');
 const { fileURLToPath } = await import('node:url');
-const ROOT = fileURLToPath(new URL('../toolkit/', import.meta.url));
-const A = Teams.pack(loadTeam(ROOT + 'teams\\ou-a.txt'));       // 5=Dragapult
-const B = Teams.pack(loadTeam(ROOT + 'teams\\opp-122866ff.txt')); // 6=Dondozo
+const ROOT = fileURLToPath(new URL('./toolkit/', import.meta.url));
+const A = Teams.pack(loadTeamOr(ROOT + 'teams\\ou-a.txt', 'ou-a'));       // 5=Dragapult
+const B = Teams.pack(loadTeamOr(ROOT + 'teams\\opp-122866ff.txt', 'dondozo-6')); // 6=Dondozo
 
 const pcts = [];
 let misses = 0, crits = 0, runs = 120;

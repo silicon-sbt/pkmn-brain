@@ -1,12 +1,13 @@
+import { loadTeamOr } from './_sample-teams.mjs';
 // RNG 验证：命中率是否真的按 90% 走？
 // 对照设计：①连续种子 vs ②混合种子 vs ③100%命中招（阴性对照）
 const sim = await import('@pkmn/sim');
 const { Battle, Teams } = sim;
-const { loadTeam } = await import('../toolkit/tools/lib.mjs');
+const { loadTeam } = await import('./toolkit/tools/lib.mjs');
 const { fileURLToPath } = await import('node:url');
-const ROOT = fileURLToPath(new URL('../toolkit/', import.meta.url));
-const A = Teams.pack(loadTeam(ROOT + 'teams\\ou-a.txt'));
-const B = Teams.pack(loadTeam(ROOT + 'teams\\opp-122866ff.txt'));
+const ROOT = fileURLToPath(new URL('./toolkit/', import.meta.url));
+const A = Teams.pack(loadTeamOr(ROOT + 'teams\\ou-a.txt', 'ou-a'));
+const B = Teams.pack(loadTeamOr(ROOT + 'teams\\opp-122866ff.txt', 'dondozo-6'));
 
 function trial(seed, moveId) {
   const b = new Battle({ formatid: 'gen9ou', seed });

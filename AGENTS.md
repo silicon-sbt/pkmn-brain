@@ -5,8 +5,15 @@
 
 **入口**：双击 `brain/启动外接大脑.bat`。用法见 `brain/怎么用.md`。
 
-**边界**：本目录**可以** import `../toolkit/`（中文名、队伍解析、data/、teams/）；反过来绝对不行。
+**边界**：本目录**可以** import `./toolkit/`（中文名、队伍解析、data/）；反过来绝对不行。
 工具与技能的约定见 `toolkit/AGENTS.md`。
+
+**`toolkit/` 是内联副本**（上游是独立仓库 [pkmn-toolkit](https://github.com/silicon-sbt/pkmn-toolkit)），
+这样克隆一个仓库就能跑。代价是两边会漂移：改了上游 repo 之后跑 `node sync-toolkit.mjs` 刷一次，
+`--check` 只报差异不动文件（逐文件比 git hash，不是看时间戳）。
+
+⚠️ **本机开发时的坑**：`./toolkit/` 指的是 `brain/toolkit/` 这份副本，**不是** `../toolkit`。
+改外面那一份不会影响这里在跑的服务 —— 记得同步，或者直接改这份副本再同步回去。
 
 ## 文件
 
@@ -32,6 +39,9 @@
 | `_verify-speed.mjs` | 先后手算得出 + 比你先动的致命招要警告（13 项断言） |
 | `_verify-oppboost.mjs` | 对手能力等级要进 calc + 换下场要清零（7 项断言） |
 | `_verify-config.mjs` | 配置优先级 / 默认值 / 报错可见（13 项断言） |
+| `toolkit/` | **内联的离线工具与数据**（上游是独立仓库 pkmn-toolkit） |
+| `sync-toolkit.mjs` | 把 `toolkit/` 刷成上游最新；`--check` 只报差异 |
+| `_sample-teams.mjs` | 自检用的内置样板队伍（队伍文件不进公开仓库，靠它兜底） |
 
 ## 数据流
 

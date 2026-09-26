@@ -22,13 +22,13 @@ import { fileURLToPath } from 'node:url';
 import { stateFromLog, isTeamPreview, previewStateFromLog } from './log2state.mjs';
 import { buildQuestion, buildTeamPreviewQuestion, buildForceSwitchQuestion, decideLead, resolveTera } from './harness.mjs';
 import { askJev, jevAvailable } from './jev.mjs';
-import { loadTeam, zhInfo } from '../toolkit/tools/lib.mjs';
+import { loadTeam, zhInfo } from './toolkit/tools/lib.mjs';
 import { logDecision } from './decide-log.mjs';
 import { cfg, announceConfig } from './config.mjs';
 announceConfig();
 
-// 外置大脑属于「对战辅助」那一半；数据/队伍/中文表属于「工具与技能」那一半（../toolkit/）
-const ROOT = fileURLToPath(new URL('../toolkit/', import.meta.url));
+// 外置大脑属于「对战辅助」那一半；数据/队伍/中文表属于「工具与技能」那一半（./toolkit/）
+const ROOT = fileURLToPath(new URL('./toolkit/', import.meta.url));
 const META = JSON.parse(readFileSync(ROOT + 'data/meta-sets.json', 'utf8'));
 // 都能被环境变量临时覆盖，其次是 brain/config.json，再是内置默认值
 const PORT = Number(process.env.JEV_PORT || cfg.server.port);

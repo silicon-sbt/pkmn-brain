@@ -1,0 +1,31 @@
+{
+  "name": "pkmn-toolkit",
+  "version": "1.0.0",
+  "description": "离线宝可梦对战工具箱：双引擎伤害计算 / 对局模拟 / 中文数据 / AI 技能。支持中文名与中文队伍文本。",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dex": "node tools/pkmn.mjs dex",
+    "move": "node tools/pkmn.mjs move",
+    "ability": "node tools/pkmn.mjs ability",
+    "item": "node tools/pkmn.mjs item",
+    "calc": "node tools/pkmn.mjs calc",
+    "speed": "node tools/pkmn.mjs speed",
+    "team": "node tools/pkmn.mjs team",
+    "sim": "node tools/pkmn.mjs sim",
+    "formats": "node tools/pkmn.mjs formats",
+    "mcp:test": "node mcp/test-client.mjs",
+    "rag:build": "node tools/rag.mjs build",
+    "rag": "node tools/rag.mjs query",
+    "rag:stats": "node tools/rag.mjs stats"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "@pkmn/dex": "^0.10.11",
+    "@pkmn/sim": "^0.10.11",
+    "@smogon/calc": "^0.12.0",
+    "pokemon-showdown": "^0.11.11"
+  }
+}
