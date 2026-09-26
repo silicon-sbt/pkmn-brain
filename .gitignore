@@ -1,0 +1,16 @@
+# 密钥与本地凭据 —— 仓库里只提交 .env.example 和 config.example.json
+.env
+api.md
+config.json
+
+# 决策日志：每一局都记了真实对手名和过程，只在本机复盘用
+logs/
+
+# 本机截图（1.6MB，且含自己的 Showdown 用户名）
+QQ*.png
+
+node_modules/
+*.bak
+*.verifybak
+.DS_Store
+Thumbs.db

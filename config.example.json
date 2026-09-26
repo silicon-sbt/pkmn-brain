@@ -1,0 +1,25 @@
+{
+  "_说明": "外置大脑配置模板。复制成 brain/config.json 再改；config.json 已 gitignore（里面有密钥）。优先级：环境变量 > config.json > .env > 默认值。",
+  "jev": {
+    "_说明": "API 凭据。至少填一个 apiKey（TypeSafe 官方）或 cfAccountId+cfApiToken（Cloudflare 路线）。留空则回退到 brain/.env / 环境变量。",
+    "apiKey": "apik-在这里填你的 TypeSafe key",
+    "cfAccountId": "",
+    "cfApiToken": "",
+    "model": "jev-latest",
+    "timeoutMs": 30000,
+    "retries": 3
+  },
+  "server": {
+    "_说明": "本地决策服务的监听端口与每分钟调用上限（防脚本失灵烧额度）",
+    "port": 7777,
+    "rateMaxPerMinute": 40
+  },
+  "team": {
+    "_说明": "收不到实时队伍时的兜底队伍文件（相对 toolkit 仓库根）",
+    "default": "teams/ou-a.txt"
+  },
+  "logging": {
+    "_说明": "决策日志：每次决策写一行到 brain/logs/（出问题复盘全靠它）",
+    "enabled": true
+  }
+}

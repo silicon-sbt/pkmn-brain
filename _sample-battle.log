@@ -1,0 +1,440 @@
+|t:|1790323629
+|gametype|singles
+|player|p1|Player 1||
+|player|p2|Player 2||
+|gen|9
+|tier|[Gen 9] OU
+|rule|HP Percentage Mod: HP is shown in percentages
+|rule|Endless Battle Clause: Forcing endless battles is banned
+|rule|Species Clause: Limit one of each Pok茅mon
+|rule|OHKO Clause: OHKO moves are banned
+|rule|Evasion Items Clause: Evasion items are banned
+|rule|Evasion Moves Clause: Evasion moves are banned
+|rule|Evasion Abilities Clause: Evasion abilities are banned
+|rule|Sleep Moves Clause: Sleep-inducing moves are banned
+|clearpoke
+|poke|p1|Glimmora, M|
+|poke|p1|Gholdengo|
+|poke|p1|Great Tusk|
+|poke|p1|Kingambit, M|
+|poke|p1|Dragapult, M|
+|poke|p1|Slowking-Galar, F|
+|poke|p2|Garganacl, F|
+|poke|p2|Great Tusk|
+|poke|p2|Toxapex, M|
+|poke|p2|Wo-Chien|
+|poke|p2|Clodsire, M|
+|poke|p2|Dondozo, F|
+|teampreview
+|
+|t:|1790323629
+|teamsize|p1|6
+|teamsize|p2|6
+|start
+|split|p1
+|switch|p1a: Glimmora|Glimmora, M|307/307
+|switch|p1a: Glimmora|Glimmora, M|100/100
+|split|p2
+|switch|p2a: Garganacl|Garganacl, F|404/404
+|switch|p2a: Garganacl|Garganacl, F|100/100
+|turn|1
+|
+|t:|1790323629
+|move|p1a: Glimmora|Stealth Rock|p2a: Garganacl
+|-sidestart|p2: Player 2|move: Stealth Rock
+|move|p2a: Garganacl|Salt Cure|p1a: Glimmora
+|split|p1
+|-damage|p1a: Glimmora|255/307
+|-damage|p1a: Glimmora|84/100
+|-start|p1a: Glimmora|Salt Cure
+|-activate|p1a: Glimmora|ability: Toxic Debris
+|-sidestart|p2: Player 2|move: Toxic Spikes
+|
+|split|p1
+|-damage|p1a: Glimmora|217/307|[from] Salt Cure
+|-damage|p1a: Glimmora|71/100|[from] Salt Cure
+|upkeep
+|turn|2
+|
+|t:|1790323629
+|move|p1a: Glimmora|Stealth Rock||[still]
+|-fail|p1a: Glimmora
+|move|p2a: Garganacl|Salt Cure|p1a: Glimmora
+|split|p1
+|-damage|p1a: Glimmora|166/307
+|-damage|p1a: Glimmora|55/100
+|-activate|p1a: Glimmora|ability: Toxic Debris
+|-sidestart|p2: Player 2|move: Toxic Spikes
+|
+|split|p1
+|-damage|p1a: Glimmora|128/307|[from] Salt Cure
+|-damage|p1a: Glimmora|42/100|[from] Salt Cure
+|upkeep
+|turn|3
+|
+|t:|1790323629
+|move|p1a: Glimmora|Stealth Rock||[still]
+|-fail|p1a: Glimmora
+|move|p2a: Garganacl|Salt Cure|p1a: Glimmora
+|split|p1
+|-damage|p1a: Glimmora|79/307
+|-damage|p1a: Glimmora|26/100
+|
+|split|p1
+|-damage|p1a: Glimmora|41/307|[from] Salt Cure
+|-damage|p1a: Glimmora|14/100|[from] Salt Cure
+|upkeep
+|turn|4
+|
+|t:|1790323629
+|move|p1a: Glimmora|Stealth Rock||[still]
+|-fail|p1a: Glimmora
+|move|p2a: Garganacl|Salt Cure|p1a: Glimmora
+|split|p1
+|-damage|p1a: Glimmora|0 fnt
+|-damage|p1a: Glimmora|0 fnt
+|faint|p1a: Glimmora
+|
+|upkeep
+|
+|t:|1790323629
+|split|p1
+|switch|p1a: Gholdengo|Gholdengo|315/315
+|switch|p1a: Gholdengo|Gholdengo|100/100
+|-item|p1a: Gholdengo|Air Balloon
+|turn|5
+|
+|t:|1790323629
+|move|p1a: Gholdengo|Make It Rain|p2a: Garganacl
+|-supereffective|p2a: Garganacl
+|split|p2
+|-damage|p2a: Garganacl|44/404
+|-damage|p2a: Garganacl|11/100
+|-unboost|p1a: Gholdengo|spa|1
+|move|p2a: Garganacl|Salt Cure|p1a: Gholdengo
+|-resisted|p1a: Gholdengo
+|split|p1
+|-damage|p1a: Gholdengo|291/315
+|-damage|p1a: Gholdengo|93/100
+|-start|p1a: Gholdengo|Salt Cure
+|-enditem|p1a: Gholdengo|Air Balloon
+|
+|split|p2
+|-heal|p2a: Garganacl|69/404|[from] item: Leftovers
+|-heal|p2a: Garganacl|18/100|[from] item: Leftovers
+|split|p1
+|-damage|p1a: Gholdengo|213/315|[from] Salt Cure
+|-damage|p1a: Gholdengo|68/100|[from] Salt Cure
+|upkeep
+|turn|6
+|
+|t:|1790323629
+|move|p1a: Gholdengo|Make It Rain|p2a: Garganacl
+|-supereffective|p2a: Garganacl
+|split|p2
+|-damage|p2a: Garganacl|0 fnt
+|-damage|p2a: Garganacl|0 fnt
+|-unboost|p1a: Gholdengo|spa|1
+|faint|p2a: Garganacl
+|
+|split|p1
+|-damage|p1a: Gholdengo|135/315|[from] Salt Cure
+|-damage|p1a: Gholdengo|43/100|[from] Salt Cure
+|upkeep
+|
+|t:|1790323629
+|split|p2
+|switch|p2a: Great Tusk|Great Tusk|371/371
+|switch|p2a: Great Tusk|Great Tusk|100/100
+|turn|7
+|
+|t:|1790323629
+|move|p2a: Great Tusk|Rapid Spin|p1a: Gholdengo
+|-immune|p1a: Gholdengo
+|move|p1a: Gholdengo|Make It Rain|p2a: Great Tusk
+|split|p2
+|-damage|p2a: Great Tusk|181/371
+|-damage|p2a: Great Tusk|49/100
+|-unboost|p1a: Gholdengo|spa|1
+|
+|split|p1
+|-damage|p1a: Gholdengo|57/315|[from] Salt Cure
+|-damage|p1a: Gholdengo|19/100|[from] Salt Cure
+|upkeep
+|turn|8
+|
+|t:|1790323629
+|move|p2a: Great Tusk|Rapid Spin|p1a: Gholdengo
+|-immune|p1a: Gholdengo
+|move|p1a: Gholdengo|Make It Rain|p2a: Great Tusk
+|split|p2
+|-damage|p2a: Great Tusk|39/371
+|-damage|p2a: Great Tusk|11/100
+|-unboost|p1a: Gholdengo|spa|1
+|
+|split|p1
+|-damage|p1a: Gholdengo|0 fnt|[from] Salt Cure
+|-damage|p1a: Gholdengo|0 fnt|[from] Salt Cure
+|faint|p1a: Gholdengo
+|upkeep
+|
+|t:|1790323629
+|split|p1
+|switch|p1a: Great Tusk|Great Tusk|434/434
+|switch|p1a: Great Tusk|Great Tusk|100/100
+|turn|9
+|
+|t:|1790323629
+|move|p2a: Great Tusk|Rapid Spin|p1a: Great Tusk
+|split|p1
+|-damage|p1a: Great Tusk|399/434
+|-damage|p1a: Great Tusk|92/100
+|-boost|p2a: Great Tusk|spe|1
+|-sideend|p2: Player 2|Toxic Spikes|[from] move: Rapid Spin|[of] p2a: Great Tusk
+|-sideend|p2: Player 2|Stealth Rock|[from] move: Rapid Spin|[of] p2a: Great Tusk
+|move|p1a: Great Tusk|Headlong Rush|p2a: Great Tusk
+|split|p2
+|-damage|p2a: Great Tusk|0 fnt
+|-damage|p2a: Great Tusk|0 fnt
+|-unboost|p1a: Great Tusk|def|1
+|-unboost|p1a: Great Tusk|spd|1
+|faint|p2a: Great Tusk
+|-end|p2a: Great Tusk|Protosynthesis|[silent]
+|
+|split|p1
+|-heal|p1a: Great Tusk|426/434|[from] item: Leftovers
+|-heal|p1a: Great Tusk|99/100|[from] item: Leftovers
+|upkeep
+|
+|t:|1790323629
+|split|p2
+|switch|p2a: Toxapex|Toxapex, M|304/304
+|switch|p2a: Toxapex|Toxapex, M|100/100
+|turn|10
+|
+|t:|1790323629
+|move|p1a: Great Tusk|Headlong Rush|p2a: Toxapex
+|-supereffective|p2a: Toxapex
+|split|p2
+|-damage|p2a: Toxapex|130/304
+|-damage|p2a: Toxapex|43/100
+|-unboost|p1a: Great Tusk|def|1
+|-unboost|p1a: Great Tusk|spd|1
+|move|p2a: Toxapex|Recover|p2a: Toxapex
+|split|p2
+|-heal|p2a: Toxapex|282/304
+|-heal|p2a: Toxapex|93/100
+|
+|split|p1
+|-heal|p1a: Great Tusk|434/434|[from] item: Leftovers
+|-heal|p1a: Great Tusk|100/100|[from] item: Leftovers
+|split|p2
+|-heal|p2a: Toxapex|301/304|[from] item: Leftovers
+|-heal|p2a: Toxapex|99/100|[from] item: Leftovers
+|upkeep
+|turn|11
+|
+|t:|1790323629
+|move|p1a: Great Tusk|Headlong Rush|p2a: Toxapex
+|-supereffective|p2a: Toxapex
+|split|p2
+|-damage|p2a: Toxapex|103/304
+|-damage|p2a: Toxapex|34/100
+|-unboost|p1a: Great Tusk|def|1
+|-unboost|p1a: Great Tusk|spd|1
+|move|p2a: Toxapex|Recover|p2a: Toxapex
+|split|p2
+|-heal|p2a: Toxapex|255/304
+|-heal|p2a: Toxapex|84/100
+|
+|split|p2
+|-heal|p2a: Toxapex|274/304|[from] item: Leftovers
+|-heal|p2a: Toxapex|91/100|[from] item: Leftovers
+|upkeep
+|turn|12
+|
+|t:|1790323629
+|move|p1a: Great Tusk|Headlong Rush|p2a: Toxapex
+|-supereffective|p2a: Toxapex
+|split|p2
+|-damage|p2a: Toxapex|82/304
+|-damage|p2a: Toxapex|27/100
+|-unboost|p1a: Great Tusk|def|1
+|-unboost|p1a: Great Tusk|spd|1
+|move|p2a: Toxapex|Recover|p2a: Toxapex
+|split|p2
+|-heal|p2a: Toxapex|234/304
+|-heal|p2a: Toxapex|77/100
+|
+|split|p2
+|-heal|p2a: Toxapex|253/304|[from] item: Leftovers
+|-heal|p2a: Toxapex|84/100|[from] item: Leftovers
+|upkeep
+|turn|13
+|
+|t:|1790323629
+|move|p1a: Great Tusk|Headlong Rush|p2a: Toxapex
+|-supereffective|p2a: Toxapex
+|split|p2
+|-damage|p2a: Toxapex|73/304
+|-damage|p2a: Toxapex|25/100
+|-unboost|p1a: Great Tusk|def|1
+|-unboost|p1a: Great Tusk|spd|1
+|move|p2a: Toxapex|Recover|p2a: Toxapex
+|split|p2
+|-heal|p2a: Toxapex|225/304
+|-heal|p2a: Toxapex|75/100
+|
+|split|p2
+|-heal|p2a: Toxapex|244/304|[from] item: Leftovers
+|-heal|p2a: Toxapex|81/100|[from] item: Leftovers
+|upkeep
+|turn|14
+|
+|t:|1790323629
+|move|p1a: Great Tusk|Headlong Rush|p2a: Toxapex
+|-supereffective|p2a: Toxapex
+|split|p2
+|-damage|p2a: Toxapex|70/304
+|-damage|p2a: Toxapex|24/100
+|-unboost|p1a: Great Tusk|def|1
+|-unboost|p1a: Great Tusk|spd|1
+|move|p2a: Toxapex|Recover|p2a: Toxapex
+|split|p2
+|-heal|p2a: Toxapex|222/304
+|-heal|p2a: Toxapex|74/100
+|
+|split|p2
+|-heal|p2a: Toxapex|241/304|[from] item: Leftovers
+|-heal|p2a: Toxapex|80/100|[from] item: Leftovers
+|upkeep
+|turn|15
+|
+|t:|1790323629
+|move|p1a: Great Tusk|Headlong Rush|p2a: Toxapex
+|-supereffective|p2a: Toxapex
+|split|p2
+|-damage|p2a: Toxapex|67/304
+|-damage|p2a: Toxapex|23/100
+|move|p2a: Toxapex|Recover|p2a: Toxapex
+|split|p2
+|-heal|p2a: Toxapex|219/304
+|-heal|p2a: Toxapex|73/100
+|
+|split|p2
+|-heal|p2a: Toxapex|238/304|[from] item: Leftovers
+|-heal|p2a: Toxapex|79/100|[from] item: Leftovers
+|upkeep
+|turn|16
+|
+|t:|1790323629
+|move|p1a: Great Tusk|Headlong Rush|p2a: Toxapex
+|-supereffective|p2a: Toxapex
+|split|p2
+|-damage|p2a: Toxapex|34/304
+|-damage|p2a: Toxapex|12/100
+|move|p2a: Toxapex|Recover|p2a: Toxapex
+|split|p2
+|-heal|p2a: Toxapex|186/304
+|-heal|p2a: Toxapex|62/100
+|
+|split|p2
+|-heal|p2a: Toxapex|205/304|[from] item: Leftovers
+|-heal|p2a: Toxapex|68/100|[from] item: Leftovers
+|upkeep
+|turn|17
+|
+|t:|1790323629
+|move|p1a: Great Tusk|Rapid Spin|p2a: Toxapex
+|split|p2
+|-damage|p2a: Toxapex|180/304
+|-damage|p2a: Toxapex|60/100
+|-boost|p1a: Great Tusk|spe|1
+|move|p2a: Toxapex|Recover|p2a: Toxapex
+|split|p2
+|-heal|p2a: Toxapex|304/304
+|-heal|p2a: Toxapex|100/100
+|
+|upkeep
+|turn|18
+|
+|t:|1790323629
+|move|p1a: Great Tusk|Rapid Spin|p2a: Toxapex
+|split|p2
+|-damage|p2a: Toxapex|279/304
+|-damage|p2a: Toxapex|92/100
+|-boost|p1a: Great Tusk|spe|1
+|move|p2a: Toxapex|Toxic|p1a: Great Tusk
+|-status|p1a: Great Tusk|tox
+|
+|split|p2
+|-heal|p2a: Toxapex|298/304|[from] item: Leftovers
+|-heal|p2a: Toxapex|99/100|[from] item: Leftovers
+|split|p1
+|-damage|p1a: Great Tusk|407/434 tox|[from] psn
+|-damage|p1a: Great Tusk|94/100 tox|[from] psn
+|upkeep
+|turn|19
+|
+|t:|1790323629
+|move|p1a: Great Tusk|Rapid Spin|p2a: Toxapex
+|split|p2
+|-damage|p2a: Toxapex|269/304
+|-damage|p2a: Toxapex|89/100
+|-boost|p1a: Great Tusk|spe|1
+|move|p2a: Toxapex|Toxic|p1a: Great Tusk
+|-fail|p1a: Great Tusk|tox
+|
+|split|p1
+|-heal|p1a: Great Tusk|434/434 tox|[from] item: Leftovers
+|-heal|p1a: Great Tusk|100/100 tox|[from] item: Leftovers
+|split|p2
+|-heal|p2a: Toxapex|288/304|[from] item: Leftovers
+|-heal|p2a: Toxapex|95/100|[from] item: Leftovers
+|split|p1
+|-damage|p1a: Great Tusk|380/434 tox|[from] psn
+|-damage|p1a: Great Tusk|88/100 tox|[from] psn
+|upkeep
+|turn|20
+|
+|t:|1790323629
+|move|p1a: Great Tusk|Rapid Spin|p2a: Toxapex
+|split|p2
+|-damage|p2a: Toxapex|258/304
+|-damage|p2a: Toxapex|85/100
+|-boost|p1a: Great Tusk|spe|1
+|move|p2a: Toxapex|Toxic|p1a: Great Tusk
+|-fail|p1a: Great Tusk|tox
+|
+|split|p1
+|-heal|p1a: Great Tusk|407/434 tox|[from] item: Leftovers
+|-heal|p1a: Great Tusk|94/100 tox|[from] item: Leftovers
+|split|p2
+|-heal|p2a: Toxapex|277/304|[from] item: Leftovers
+|-heal|p2a: Toxapex|92/100|[from] item: Leftovers
+|split|p1
+|-damage|p1a: Great Tusk|326/434 tox|[from] psn
+|-damage|p1a: Great Tusk|76/100 tox|[from] psn
+|upkeep
+|turn|21
+|
+|t:|1790323629
+|move|p1a: Great Tusk|Rapid Spin|p2a: Toxapex
+|split|p2
+|-damage|p2a: Toxapex|248/304
+|-damage|p2a: Toxapex|82/100
+|-boost|p1a: Great Tusk|spe|1
+|move|p2a: Toxapex|Toxic|p1a: Great Tusk
+|-fail|p1a: Great Tusk|tox
+|
+|split|p1
+|-heal|p1a: Great Tusk|353/434 tox|[from] item: Leftovers
+|-heal|p1a: Great Tusk|82/100 tox|[from] item: Leftovers
+|split|p2
+|-heal|p2a: Toxapex|267/304|[from] item: Leftovers
+|-heal|p2a: Toxapex|88/100|[from] item: Leftovers
+|split|p1
+|-damage|p1a: Great Tusk|245/434 tox|[from] psn
+|-damage|p1a: Great Tusk|57/100 tox|[from] psn
+|upkeep
+|turn|22

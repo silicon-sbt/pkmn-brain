@@ -1,0 +1,7 @@
+# 统一按 LF 存 —— Windows 上不设这个，每次提交都会因为 CRLF 警告满屏。
+* text=auto eol=lf
+
+# 这些必须保持原样，别被行尾转换动到（.bat 是给 cmd 读的，日志要逐字节还原）
+*.bat -text
+*.log -text
+*.png binary
