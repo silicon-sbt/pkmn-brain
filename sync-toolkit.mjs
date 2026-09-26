@@ -6,8 +6,11 @@
 //   node sync-toolkit.mjs --check       # 只看差多少，不改文件
 //
 // 为什么需要它：./toolkit/ 是【内联进来的一份副本】，本仓库因此自包含、克隆下来就能跑。
-// 代价是两边会漂移 —— 所以改了上游之后记得跑一次这个，它会打印两边的 commit 让你看清差在哪。
-import { existsSync, rmSync, readdirSync, statSync } from 'node:fs';
+// 代价是两边会漂移 —— 所以改了上游之后记得跑一次这个，它会打印源 commit 让你看清差在哪。
+//
+// 注：Windows 上 tar 解出来的文件是 CRLF、仓库里存的是 LF —— 提交时 git 会自己规范化，
+// 所以 --check 比的是【统一行尾后的内容】而不是原始字节（否则会把 40 个文件全报成不同）。
+import { existsSync, rmSync, readdirSync, readFileSync, mkdirSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 
@@ -38,17 +41,22 @@ line('源：' + SRC);
 line('    commit ' + srcHead + '   跟踪文件 ' + srcFiles.length + ' 个');
 
 if (CHECK) {
-  let same = 0, diff = 0, missing = 0;
+  // ⚠️ 比的是【内容】而不是工作区字节：Windows 上 tar 解出来是 CRLF、仓库里存的是 LF，
+  //   拿原始字节比会把 40 个文件全报成「不同」（实测踩过）。所以先统一行尾再比。
+  const norm = (p) => { try { return readFileSync(p, 'utf8').replace(/\r\n/g, '\n'); } catch (e) { return null; } };
+  let same = 0, missing = 0;
+  const diffFiles = [];
   for (const f of srcFiles) {
-    const d = DEST + '/' + f;
-    if (!existsSync(d)) { missing++; continue; }
-    const a = (git(['hash-object', '--', f], SRC).stdout || '').trim();
-    const b = (git(['hash-object', '--', f], DEST).stdout || '').trim();
-    if (a && a === b) same++; else diff++;
+    const a = norm(SRC + '/' + f);
+    const b = norm(DEST + '/' + f);
+    if (b === null) { missing++; continue; }
+    if (a === b) same++; else diffFiles.push(f);
   }
   line('');
-  line('  相同 ' + same + '   不同 ' + diff + '   缺失 ' + missing);
-  line(diff + missing ? '  ⚠️ 需要同步：node sync-toolkit.mjs' : '  ✅ 已经是最新');
+  line('  相同 ' + same + '   不同 ' + diffFiles.length + '   缺失 ' + missing);
+  for (const f of diffFiles.slice(0, 10)) line('    · ' + f);
+  if (diffFiles.length > 10) line('    …还有 ' + (diffFiles.length - 10) + ' 个');
+  line(diffFiles.length + missing ? '  ⚠️ 需要同步：node sync-toolkit.mjs' : '  ✅ 已经是最新');
   if (tmpClone) rmSync(tmpClone, { recursive: true, force: true });
   process.exit(0);
 }
@@ -57,7 +65,7 @@ if (CHECK) {
 if (existsSync(DEST)) rmSync(DEST, { recursive: true, force: true });
 const tar = HERE + '.toolkit-sync.tar';
 if (git(['archive', '--format=tar', '-o', tar, 'HEAD'], SRC).status !== 0) { line('❌ git archive 失败'); process.exit(1); }
-spawnSync('mkdir', [DEST], { shell: true });
+mkdirSync(DEST, { recursive: true });   // 用 spawnSync('mkdir',{shell:true}) 会有 DeprecationWarning
 const x = spawnSync('tar', ['-xf', tar, '-C', DEST], { stdio: 'inherit' });
 rmSync(tar, { force: true });
 if (tmpClone) rmSync(tmpClone, { recursive: true, force: true });

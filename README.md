@@ -1,23 +1,21 @@
-# 宝可梦外置大脑（Jev）
+# pkmn-brain
 
-打 Pokémon Showdown 天梯时的**实时决策辅助**：Tampermonkey 脚本读对战页 → 本地服务解析局面 →
-调 [Jev](https://typesafe.ai)（专做模糊判断的小模型，单次约 0.4–1.0 秒）→ 面板在页面左下角显示
-「这回合点啥 / 换谁 / 用不用太晶」。
+**打 Pokémon Showdown 天梯时的实时决策面板** —— 对战页左下角直接告诉你「这回合点啥 / 换谁 / 用不用太晶」。
 
-**分工是刻意的**：代码只负责**算事实**（伤害、几确、免疫、先后手、太晶收益、钉子价值），
-Jev 只负责**做选择**（该攻击还是该强化、对手会不会换人）。算得清的不交给模型，算不清的才交给它。
+它读对战页 → 本地解析局面 → 调 [Jev](https://typesafe.ai)（专做模糊判断的小模型，一次约 0.4–1.0 秒）→ 显示建议。
 
-> 克隆下来就能跑 —— 需要的数据、中文名表、队伍解析都已经在 `toolkit/` 里跟着一起来了。
+> **分工是刻意的**：代码只负责**算事实**（伤害、几确、免疫、先后手、太晶收益、钉子价值），
+> Jev 只负责**做选择**（该攻击还是该强化、对手会不会换人）。算得清的不交给模型，算不清的才交给它。
+
+```bash
+git clone https://github.com/silicon-sbt/pkmn-brain.git && cd pkmn-brain && npm install
+```
+
+需要的数据、中文名表、队伍解析都已经在 `toolkit/` 里跟着来了 —— **克隆一个仓库就能跑**。
 
 ---
 
 ## 三步开始
-
-```bash
-git clone https://github.com/silicon-sbt/pkmn-brain.git
-cd pkmn-brain
-npm install
-```
 
 1. 把 `config.example.json` 复制成 **`config.json`**，填上 `jev.apiKey`
    （去 <https://console.typesafe.ai/keys> 领；不想用官方也可以改走 Cloudflare 路线）
@@ -32,7 +30,7 @@ npm install
 
 ## 它长什么样
 
-面板是纯文字、无背景、无 emoji，钉在对战页左下角那块空白，`pointer-events: none` 不挡操作：
+纯文字、无背景、无 emoji，钉在对战页左下角那块空白，`pointer-events: none` 不挡操作：
 
 ```
 T5 · 厄鬼椪 84%  vs  钢铠鸦 100% · 512ms
@@ -42,12 +40,19 @@ T5 · 厄鬼椪 84%  vs  钢铠鸦 100% · 512ms
 队伍: 正在用的队（request.side.pokemon，6 只由实时数值反解）
 ```
 
-每次决策的**完整面板原文**都会落盘到 `logs/`，事后可以直接和 Showdown 的日志逐行对照 ——
-「它当时为什么建议这个」只有原文能回答。
+- **「点」后面就是要点的那一手**；出现「太晶 + 点 X」= 先点太晶按钮再点 X（两步是分开的）
+- 低置信会加前缀**【把握不大】** —— 那一手本来就说不准，别当成确定的建议
+- `Alt+J` 隐藏 / 恢复；最后一行是**故意留的诊断行**，出问题直接看它，不用翻黑窗口
+
+### 每次决策都留了底
+
+面板显示的原话会完整落盘到 `logs/`，事后可以和 Showdown 的日志逐行对照 ——
+**「它当时为什么建议这个」只有原文能回答**。
 
 ```bash
 node logview.mjs              # 列出打过的对局
-node logview.mjs <key>        # 每次决策一节：局面 → Showdown 实际发生 → 面板原文 → 模型回答
+node logview.mjs <key>        # 一次决策一节：局面 → Showdown 实际发生 → 面板原文 → 模型回答
+node logview.mjs <key> --turn 7 --brief
 ```
 
 ---
@@ -72,7 +77,7 @@ node logview.mjs <key>        # 每次决策一节：局面 → Showdown 实际�
 [凭据] brain/config.json 的 jev.apiKey
 ```
 
-配置写错不会静默兜底 —— 未知键、类型不对、数值越界都会打到控制台。`node _verify-config.mjs` 有自检。
+配置写错**不会静默兜底** —— 未知键、类型不对、数值越界都会打到控制台。`node _verify-config.mjs` 有自检。
 
 ---
 
@@ -83,38 +88,34 @@ node logview.mjs <key>        # 每次决策一节：局面 → Showdown 实际�
 | `serve.mjs` | 本地 HTTP 服务（127.0.0.1:7777）+ 唯一的决策调度入口 |
 | `harness.mjs` | **事实层**：伤害 / 几确 / 免疫 / 先后手 / 太晶 / 强化 / 换人，组装给 Jev 的问题 |
 | `log2state.mjs` | Showdown 原始日志 → 结构化局面 |
-| `jev.mjs` | Jev 客户端（网络重试 + DoH 兜底） |
-| `dnsfix.mjs` | DNS 污染绕行（DoH 查真 IP + 直连） |
+| `jev.mjs` / `dnsfix.mjs` | Jev 客户端（网络重试 + DoH 兜底）/ DNS 污染绕行 |
 | `config.mjs` | 统一配置加载与校验 |
 | `decide-log.mjs` / `logview.mjs` | 决策日志落盘 / 查看器 |
 | `pkmn-brain.user.js` | Tampermonkey 面板 |
 | `start.mjs` / `启动外接大脑.bat` | 启动器（中文只写在 `.mjs` 里，见下） |
-| `toolkit/` | **内联的离线工具与数据**：中文名表、队伍解析、伤害库、meta 配置、AI 技能 |
-| `sync-toolkit.mjs` | 把 `toolkit/` 刷成上游最新（见文末） |
+| `toolkit/` | **内联的离线工具与数据**（见文末） |
+| `sync-toolkit.mjs` | 把 `toolkit/` 刷成上游最新 |
+| `_sample-teams.mjs` | 自检用的内置样板队伍 |
 | `regress.mjs` / `verify_firsthit.mjs` / `_verify-*.mjs` | 自检与回归 |
 
 ### 自检
 
 ```bash
-node regress.mjs              # 端到端回归（真引擎 + 真 Jev，跑四条阶段）
-node verify_firsthit.mjs      # 结实 / 气势披带 / 多重鳞片 / 多段招
-node _verify-speed.mjs        # 先后手
-node _verify-hazard.mjs       # 钉子价值 / 换人代价判读
-node _verify-oppboost.mjs     # 对手能力等级 / 换场清零
-node _verify-deadmove.mjs     # 被锁在一招无效的招式上时只给换人
-node _verify-config.mjs       # 配置优先级与报错可见
-node _verify-decidelog.mjs    # 决策日志端到端
-node _verify-dmg.mjs          # 伤害对拍（calc 预测 vs 引擎实跑）
+npm run verify       # 配置 / 先后手 / 钉子 / 能力等级 / 锁招 / 打不死机制（不联网）
+npm run regress      # 端到端回归（真引擎 + 真 Jev，跑四条阶段）
+
+node _verify-dmg.mjs       # 伤害对拍：calc 的预测 vs 引擎实跑
+node _verify-decidelog.mjs # 决策日志端到端（自己在 7799 起服务，不打扰你在用的 7777）
 ```
 
-除 `regress.mjs` 外都不需要联网。自检用的队伍有内置样板，**没有队伍文件也能直接跑**。
+自检用的队伍有内置样板 —— **没有队伍文件也能直接跑**。
 
 ---
 
 ## 已知限制（诚实的）
 
 - **对手配置是推测**：没见过的宝可梦用 Smogon 使用率最常见配置兜底，不是真配置。面板上会标「按使用率配置估」。
-- **速度只能估**：`@smogon/calc` 0.12 不含道具/特性/能力等级，得自己补；补不齐的会写进口径。
+- **速度只能估**：`@smogon/calc` 0.12 不含道具 / 特性 / 能力等级，得自己补；补不齐的会写进口径。
 - **驱动能量 / 古代活性 / 夸克充能的【攻击】加成**（×1.3）目前没进伤害计算 —— 速度那一档处理了，攻击档还没有。
 - **只算当前回合的威胁**：后排宝可梦这一回合打不到你，所以不算。
 - **会调外部 API**：这不是纯离线工具，需要 Jev 的额度。
@@ -146,7 +147,7 @@ node _verify-dmg.mjs          # 伤害对拍（calc 预测 vs 引擎实跑）
 内联的代价是会漂移，所以留了个同步脚本：
 
 ```bash
-node sync-toolkit.mjs --check   # 只看差多少（不动文件）
+node sync-toolkit.mjs --check   # 只看差多少（逐文件比 git hash，不动文件）
 node sync-toolkit.mjs           # 刷成上游最新，然后 git commit
 ```
 

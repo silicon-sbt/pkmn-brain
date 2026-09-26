@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         宝可梦外接大脑 (Jev)
 // @namespace    pkmn-brain
-// @version      2.8.4
+// @version      1.0.0
 // @description  在对战页左下角以纯文字显示 Jev 的实时决策建议
 // @match        https://play.pokemonshowdown.com/*
 // @grant        GM_xmlhttpRequest
@@ -121,7 +121,7 @@ const SHOW_OPTIONS = 4;
   }
 
   function diag() {
-    const lines = ['—— 诊断（v2.8.4）——'];
+    const lines = ['—— 诊断（v1.0.0）——'];
     lines.push('  unsafeWindow 可用 = ' + (W !== window));
     lines.push('  unsafeWindow.PS  = ' + (W.PS ? typeof W.PS : 'undefined'));
     lines.push('  PS.rooms 存在    = ' + !!(W.PS && W.PS.rooms));
@@ -428,5 +428,5 @@ const SHOW_OPTIONS = 4;
     ask(log, myName(), opp, req);
   }, POLL_MS);
 
-  console.log('[外接大脑] ===== 已注入 v2.8.4 =====');
+  console.log('[外接大脑] ===== 已注入 v1.0.0 =====');
 })();

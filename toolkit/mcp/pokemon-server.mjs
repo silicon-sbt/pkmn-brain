@@ -95,7 +95,7 @@ const TOOLS = [
       engine: { type: 'string', enum: ['auto', 'sim', 'showdown'], description: '引擎，默认 auto' } }, required: ['team1', 'team2'] } },
 ];
 
-const server = new Server({ name: 'pokemon', version: '1.1.0' }, { capabilities: { tools: {} } });
+const server = new Server({ name: 'pokemon', version: '1.0.0' }, { capabilities: { tools: {} } });
 server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: TOOLS }));
 server.setRequestHandler(CallToolRequestSchema, async (req) => {
   const { name, arguments: args = {} } = req.params;
