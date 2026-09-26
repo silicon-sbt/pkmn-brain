@@ -14,7 +14,7 @@ import { readFileSync } from 'node:fs';
 const { calculate, Generations, Pokemon, Move, Field } = await import('@smogon/calc');
 const { Dex } = await import('@pkmn/dex');
 const { askJev, askJevMock, jevAvailable } = await import('./jev.mjs');
-const { zhInfo } = await import('./toolkit/tools/lib.mjs');
+const { zhInfo, paradoxMult: paradoxMultRaw, PARADOX_MULT } = await import('./toolkit/tools/lib.mjs');
 // 太晶属性名走项目自己的中文数据源（data/zh-ps.json），不另起一张手写表
 const typeZh = (t) => zhInfo('types', t).zh || t;
 
@@ -129,6 +129,26 @@ function survivesFirstHit(set, category, hpPercent, moveName) {
   return firstHitEffects(set, category, hpPercent, moveName).length > 0;
 }
 
+// ---------- 0.9) 古代活性 / 夸克充能（含驱动能量）----------
+// ★ 它把它【最高的一项】×1.3，速度 ×1.5；而 @smogon/calc **完全没建这个**。
+//   实测（不要凭印象，这是跑出来的）：大伟牙 252 攻 Adamant 猛进 vs 盐石巨灵，
+//     不给 / ability:'Protosynthesis' / item:'Booster Energy' / 两者都给
+//   —— 四种写法的伤害**一模一样**（全是 260-308 = 64.4%），Atk 也一直是 397。
+//   连同「构造后改 stats.atk / rawStats.atk 也不生效」也试过了（calc 会忽略）。
+//   唯一被认的是 overrides.baseStats，但那是改种族值，跟「最终数值 ×1.3」不是一回事。
+//
+//   引擎实现：abilities.js 的 onModifyAtk → chainModify([5325, 4096])，即该项 ×1.30005；
+//   速度那一档是 chainModify(1.5)。所以这里在算完伤害后按同一倍率缩放 ——
+//   唯一的误差来自伤害公式里那一次 floor，实测 <1%（这条 30% 的错先修掉更重要）。
+//   ★ 倍率与「哪一项被提」的判定走 toolkit 的同一份实现（lib.mjs 的 PARADOX_MULT /
+//     paradoxMult）—— 两边各写一份必然漂移，而漂移的方向是「面板和 CLI 给出不同数字」。
+//     这里只做一层适配：把 set 上的 paradox 字段拆出来传进去。
+//     自检：node _verify-paradox.mjs（我们乘了没有 + 真跑 80 局引擎对拍）。
+function paradoxMult(attackerSet, defenderSet, moveName, category) {
+  return paradoxMultRaw(attackerSet && attackerSet.paradox, defenderSet && defenderSet.paradox,
+    moveName, category);
+}
+
 // ---------- 1) 事实计算 ----------
 // tera = 「这一发用太晶属性 X 打出去」。@smogon/calc 0.12 起支持：给 set 加 teraType 即视为已太晶，
 //   我方防御属性同时改变。0.11.0 完全不支持（写 teraType 被静默忽略，算出来和没太晶一样）。
@@ -147,7 +167,9 @@ function moveFeature(attacker, attackerSet, defender, defenderSet, mvName, hpPer
   try { r = calculate(g, mk(attacker, atkSet), mk(defender, defenderSet), new Move(g, m.name), new Field({ gameType: 'Singles' })); }
   catch (e) { return null; }
   const multiHit = Array.isArray(r.damage) && Array.isArray(r.damage[0]);
-  const d = damageRolls(r);
+  // ★ 古代活性/夸克充能：calc 不建，自己按同一倍率缩放（见 paradoxMult 顶部）
+  const _pm = isFixed ? 1 : paradoxMult(atkSet, defenderSet, m.name, m.category);
+  const d = damageRolls(r).map(x => Math.round(x * _pm));
   const hi = Math.max(...d), lo = Math.min(...d);
   const hp = mk(defender, defenderSet).stats.hp;
   const pctHi = hi / hp * 100, pctLo = lo / hp * 100;
@@ -222,7 +244,9 @@ function switchFeature(mySet, oppSets, oppRevealedMoves, species, oppActiveSp, o
       const isPri = m.exists && (m.priority || 0) > 0;
       try {
         const r = calculate(g, mk(oppSp, oppSets[oppSp] || {}), mk(species, mySet), new Move(g, mv), new Field({ gameType: 'Singles' }));
-        const pct = Math.max(...damageRolls(r)) / inHp * 100;
+        // 古代活性/夸克充能：对手提了攻、或我们这只提了防，都要算进去
+        const pm = paradoxMult(oppSets[oppSp] || {}, mySet, m.name, m.category);
+        const pct = Math.round(Math.max(...damageRolls(r)) * pm) / inHp * 100;
         if (!worst || pct > worst.pct) worst = { pct, mv, from: oppSp };
         if (isPri && (!priorityWorst || pct > priorityWorst.pct)) priorityWorst = { pct, mv, from: oppSp, priority: m.priority };
       } catch (e) {}
@@ -299,7 +323,9 @@ function finalSpeedOf(sp, set, opts = {}) {
 //   改一处忘一处 —— 实测就错过一次（后排的招被当成场上威胁）。现在只有这一份。
 function hitOnMe(oppSp, oppSet, mySp, mySet, moveName) {
   const r = calculate(g, mk(oppSp, oppSet), mk(mySp, mySet), new Move(g, moveName), new Field({ gameType: 'Singles' }));
-  return Math.max(...damageRolls(r)) / mk(mySp, mySet).stats.hp * 100;
+  const mv = Dex.moves.get(moveName);
+  const pm = paradoxMult(oppSet, mySet, mv.name, mv.category);
+  return Math.round(Math.max(...damageRolls(r)) * pm) / mk(mySp, mySet).stats.hp * 100;
 }
 
 // 对手【场上那一只】的威胁：已知招式里能打我方当前宝可梦多少，以及哪些是先制招。
@@ -684,6 +710,25 @@ function setupFeature(meSp, mySet, oppSp, oppSet, mvName, oppHp, threats, oppSet
   const ansSet = ansSp ? (oppSets || {})[ansSp] : null;
   const nowVsAnswer = (ansSp && ansSet) ? bestOf(mySet, ansSp, ansSet, 100) : null;
   const afterVsAnswer = (ansSp && ansSet) ? bestOf(boosted, ansSp, ansSet, 100) : null;
+  // ★★ 强化真正的价值在【它后面的那几只】，不在当前这一只。★★
+  //   只算当前这一只时，netSave===0（回合打平）看起来像「强化没用」—— 而 instructions 里
+  //   那条判据恰好写着「回合数没变 → 才不值得」⇒ 模型拿到的结论是【别强化】。
+  //   实测（2026-09-26 ou-c 厄鬼椪 vs 满血天蝎王）：面板明明写了【不是亏】，
+  //   Jev 还是给剑舞 0.22、棘藤棒 0.76。根因就是判据那一句把「打平」直接归进了「不值得」。
+  //   而光写「会带到下一只」是空话 —— 「没有数字的选项 = 不存在的选项」是本项目第 4 次同坑。
+  //   所以这里逐只算成数字：这个 +N 让对手后面几只的死法快了没有、快了多少。
+  //   基准写死：对手满血（100）、按使用率配置估。
+  const carry = [];
+  for (const sp of Object.keys(oppSets || {})) {
+    if (sp === oppSp) continue;
+    const c0 = bestOf(mySet, sp, oppSets[sp], 100);
+    const c1 = bestOf(boosted, sp, oppSets[sp], 100);
+    if (!c0 || !c1) continue;   // 算不出来的不进结论 —— 它属于「没算出来」，不是「没收益」
+    const t0 = c0.turnsToKO, t1 = c1.turnsToKO;
+    const flip = t0 === Infinity && Number.isFinite(t1);
+    const faster = Number.isFinite(t0) && Number.isFinite(t1) && t1 < t0;
+    if (flip || faster) carry.push({ sp, move: c1.moveName, t0, t1, flip });
+  }
   const speOf = (s) => { try { return mk(meSp, s).stats.spe; } catch (e) { return null; } };
   let oppSpe = null; try { oppSpe = mk(oppSp, oppSet).stats.spe; } catch (e) {}
   const zh = zhInfo('moves', m.name);
@@ -705,6 +750,7 @@ function setupFeature(meSp, mySet, oppSp, oppSet, mvName, oppHp, threats, oppSet
     inAfter: worstIncoming(meSp, boosted, threats, oppSets),
     nowVsAnswer: nowVsAnswer ? { move: nowVsAnswer.moveName, pct: nowVsAnswer.expPct || 0 } : null,
     afterVsAnswer: afterVsAnswer ? { move: afterVsAnswer.moveName, pct: afterVsAnswer.expPct || 0 } : null,
+    carry,   // ★ 这个 +N 让对手【后面几只】的死法快了多少（只列真的变快的）
   };
 }
 
@@ -808,11 +854,26 @@ function setupText(s, risk) {
         parts.push('回合账：不强化 → 出 ' + base.tB + ' 次招打死它；强化 → 1 回合强化 + ' + base.tA +
           ' 回合打死 = 一共 ' + totalYes + ' 回合。' +
           (netSave > 0 ? '【净省 ' + netSave + ' 回合 —— 这是实打实的赚】'
-            : netSave === 0 ? '【总回合数一样 —— 但这【不是亏】】强化和出招挨打的次数一样，' +
-              '所以它不多花时间、也不多挨打，等于白拿一个 +能力；只要你之后【不换人】，' +
-              '它会一直带到下一只、再下一只。唯一要权衡的是：对手会不会拿这一回合去换人/回复/强化'
+            // ★★ 「打平」= 白赚，不是「没差别」。★★
+            //   两条路花的回合一样、挨打的次数也【严格一样】（对手每一回合都在动），
+            //   唯一区别是结束时的数值 ⇒ 这是严格更优，不是平手。
+            //   旧文案写「总回合数一样 —— 但这【不是亏】」，而 instructions 那条判据
+            //   同时写着「回合数没变 → 才不值得」：两边对不上，模型信了后者（实测剑舞只有 0.22）。
+            : netSave === 0 ? '【★白赚一个 ' + s.boostText + '】—— 两条路花的回合一样、' +
+              '挨打的次数也【一模一样】（对手在这几回合里照样出手），' +
+              '唯一区别是结束时的数值：出招那条路你打完它还是原来的数值，' +
+              '强化这条路你【同样打完它、却多带着 ' + s.boostText + ' 进下一只】。' +
+              '所以这一档是【该强化】，不是「没差别」'
             : '⚠️【反而多花 ' + (-netSave) + ' 回合】—— 光看这一只，强化是亏的，' +
               '只有你确定能靠强化后的身板/输出去赢下后面几只时才值得'));
+
+        // ★ 把「会带到下一只」从空话变成数字（基准：对手满血、按使用率配置估）
+        if (s.carry && s.carry.length) {
+          const cl = s.carry.slice(0, 5).map(c => zhInfo('species', c.sp).zh + '（' + c.move + ' ' +
+            (c.flip ? '打不死 → ' + c.t1 + ' 回合' : c.t0 + ' → ' + c.t1 + ' 回合') + '）').join('、');
+          parts.push('带过去之后：这个 ' + s.boostText + ' 会一直挂在你身上换不掉，' +
+            '对手后面 ' + s.carry.length + ' 只的死法都会变快（按满血、使用率配置估）—— ' + cl);
+        }
       } else {
         parts.push('回合账：这一手改的是数值不是回合数（' + base.vB + ' → ' + base.vA + '）');
       }
@@ -1183,8 +1244,13 @@ export function buildQuestion(state) {
         '出招时请把它和这里的两个走向对上（强化选项和换人选项里都给了「它不换 / 它换」各自的数）；' +
         '⑧强化招（剑舞/诡计/龙之舞/冥想…）和攻击【都要挨对手这一发】—— 差别只在「这一回合的伤害」换成「之后每一击都更强」。' +
         '所以不要因为强化选项里写了挨打多少就回避它：攻击选项里同样写了。' +
-        '判据看【回合数】而不是百分点：强化后把「需 N 回合」压缩到更小的 M 回合、或从打不死变成一击必杀 → 值得；' +
-        '回合数没变、对手已经残血、或你本回合就能击杀对面 → 才不值得。' +
+        '判据看【回合数】：强化后把「需 N 回合」压缩到更小的 M 回合、或从打不死变成一击必杀 → 值得；' +
+        '★★但【总回合数一样 ≠ 不值得】★★ —— 若「1 回合强化 + M 回合打死」正好等于「N 回合直接打死」，' +
+        '两条路挨打的次数和花的回合【完全相同】，唯一区别是强化这条路结束时你手里多一个 +能力，' +
+        '而且它【会一直带到后面每一只】（面板会给「带过去之后」那几只怕什么变快）。' +
+        '这种打平是【白赚】，面板会明确写【★白赚】；把它读成「没差别」就等于白扔一个 +能力。' +
+        '真正不值得的只有三类：①强化后反而【多花】回合；②对手已经残血、或你本回合就能击杀它（先杀人）；' +
+        '③对手这回合大概率换人/回复，把你买的这一回合拿回去。' +
         '只回答一个选项 id。',
       criteria,
     },

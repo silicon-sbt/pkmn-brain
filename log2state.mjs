@@ -27,7 +27,10 @@ export function parseLog(log) {
     // ★ 先后手要用到的三样，以前【一个都没记】，所以面板从来没算对过顺序。
     weather: null,            // 'RainDance' / 'SunnyDay' / 'Sandstorm' / 'Snow' / null
     status: {},               // status['p1a: Kyurem' 的 key] = 'par' | 'brn' | ...
-    speedFlag: {},            // 夸克充能/古代活性 的【提速】档（quarkdrivespe / protosynthesisspe）
+    speedFlag: {},            // 夸克充能/古代活性 的【提速】档（保留给旧调用方；等价于 paradox === 'spe'）
+    // ★ 古代活性 / 夸克充能【提的是哪一项】：'atk'|'def'|'spa'|'spd'|'spe'
+    //   引擎日志是 |-start|p1a: 大伟牙|protosynthesisatk —— 以前只认 ...spe，攻击档全丢了。
+    paradox: {},
     hazards: { p1: [], p2: [] }, turn: 0,
   };
   for (const raw of log) {
@@ -55,7 +58,11 @@ export function parseLog(log) {
       //   所以必须自己清 —— 否则「它换下去又换上来」会带着上次的 +6，伤害凭空翻几倍。
       //   drag（被吼叫/吹飞）同样清零；replace（幻觉破除）不算换人，不清。
       const prev = out.species[slot];
-      if (prev && prev !== name && (kind === 'switch' || kind === 'drag')) delete out.boosts[key(side, prev)];
+      if (prev && prev !== name && (kind === 'switch' || kind === 'drag')) {
+        delete out.boosts[key(side, prev)];
+        delete out.paradox[key(side, prev)];   // 古代活性/夸克充能 的 volatile 也随换人消失
+        out.speedFlag[key(side, prev)] = false;
+      }
       out.species[slot] = name;
       out.everSeen[side] && out.everSeen[side].add(name);
       const m = (p[4] || '').match(HP_RE);
@@ -123,8 +130,13 @@ export function parseLog(log) {
     //   它决定了铁辙迹能不能先手 —— 不记这一条，速度比较就是错的。
     if (kind === '-start' || kind === '-end') {
       const what = String(p[3] || '').toLowerCase().replace(/[^a-z]/g, '');
-      if (what === 'quarkdrivespe' || what === 'protosynthesisspe') out.speedFlag[K] = (kind === '-start');
-      else if (kind === '-end' && (what === 'quarkdrive' || what === 'protosynthesis')) out.speedFlag[K] = false;
+      const px = /^(protosynthesis|quarkdrive)(atk|def|spa|spd|spe)$/.exec(what);
+      if (px) {
+        if (kind === '-start') { out.paradox[K] = px[2]; out.speedFlag[K] = (px[2] === 'spe'); }
+        else { delete out.paradox[K]; out.speedFlag[K] = false; }
+      } else if (kind === '-end' && (what === 'quarkdrive' || what === 'protosynthesis')) {
+        delete out.paradox[K]; out.speedFlag[K] = false;
+      }
       continue;
     }
 
@@ -161,6 +173,7 @@ export function stateFromLog(log, meSide, myTeam, META) {
   const setOf = (m, sp) => ({
     ability: m.ability, item: m.item, nature: m.nature, evs: m.evs, moves: m.moves,
     boosts: P.boosts[key(meSide, sp)] || {},
+    paradox: P.paradox[key(meSide, sp)] || null,
     teraType: teraOf(sp),
     teraAvailable: (!teraOf(sp) && m.teraType) ? m.teraType : undefined,
     intact: P.broken[key(meSide, sp)] ? false : undefined,
@@ -185,6 +198,7 @@ export function stateFromLog(log, meSide, myTeam, META) {
       //   可按 +0 只有 27-31% ⇒ kills_our_active=false ⇒【先制必杀警告一次都没触发】，
       //   面板连着让 5 只上去送。详见 brain/AGENTS.md「对手的能力等级」。
       boosts: P.boosts[K] || {},
+      paradox: P.paradox[K] || null,
       nature: meta.nature, evs: meta.evs,
       assumed: !P.abilities[K] || !P.items[K],
       // ★ 画皮/结冻头已经用掉了就必须告诉 calc 那一侧，否则 firstHitBlock 会一直拦着

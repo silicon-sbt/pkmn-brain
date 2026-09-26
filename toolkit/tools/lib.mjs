@@ -200,6 +200,41 @@ export function damageRolls(res) {
   return { perHit, total, multiHit: true, hits: d.length, groups };
 }
 
+// ①b 古代活性 / 夸克充能（含驱动能量）：@smogon/calc **完全没建这个**。
+//
+//    实测（本项目跑出来的，不要凭印象）：雄伟牙 252 攻 Adamant 猛进 vs 盐石巨灵，
+//    不给 / ability:'Protosynthesis' / item:'Booster Energy' / 两者都给 ——
+//    **四种写法的伤害一模一样**；构造后改 stats.atk、rawStats.atk 也全被忽略。
+//
+//    倍率来自引擎源码（真值，不是拍的）：pokemon-showdown/dist/data/abilities.js 里
+//    onModifyAtk/Def/SpA/SpD → chainModify([5325, 4096]) = ×1.30005；onModifySpe → chainModify(1.5)。
+//    提哪一项由 pokemon.getBestStat(false, true) 决定 —— 提的是速度就不该加成伤害，
+//    所以这里必须由**调用方**告诉它提的是哪一项（'atk'|'def'|'spa'|'spd'|'spe'），代码不猜。
+//
+//    注意两个容易漏的点：
+//      · 扑击 Body Press 用【防御】当攻击力 ⇒ 提的是 def 而非 atk；
+//      · 精神冲击 / 精神击破 / 神秘之剑 是特攻招但打【物防】⇒ 对面提 def 要减。
+export const PARADOX_MULT = 5325 / 4096;
+const SPECIAL_HITS_DEF = new Set(['psyshock', 'psystrike', 'secretsword']);
+const moveId = (s) => String(s == null ? '' : s).toLowerCase().replace(/[^a-z0-9]/g, '');
+export function paradoxStats(moveName, category) {
+  if (!category || category === 'Status') return null;
+  const id = moveId(moveName);
+  return {
+    aStat: id === 'bodypress' ? 'def' : (category === 'Physical' ? 'atk' : 'spa'),
+    dStat: (category === 'Physical' || SPECIAL_HITS_DEF.has(id)) ? 'def' : 'spd',
+  };
+}
+// atkBoosted / defBoosted = 攻方、守方【被古代活性/夸克充能提上去的那一项】（没有就传 null）。
+export function paradoxMult(atkBoosted, defBoosted, moveName, category) {
+  const s = paradoxStats(moveName, category);
+  if (!s) return 1;
+  let m = 1;
+  if (atkBoosted === s.aStat) m *= PARADOX_MULT;
+  if (defBoosted === s.dStat) m /= PARADOX_MULT;
+  return m;
+}
+
 // ② 最终速度：Pokemon.stats.spe 【不含】道具 / 特性 / 能力等级 / 异常状态。
 //    实测（0.12，本项目自己跑过）：讲究围巾、速度 +2、麻痹 —— 三者都不改变 stats.spe。
 //    0.12 也【没有导出 getFinalSpeed】（那是后面版本才有的）。

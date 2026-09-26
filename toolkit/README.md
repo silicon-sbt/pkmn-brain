@@ -54,6 +54,8 @@ node tools/pkmn.mjs team teams/me.txt --format gen9ou
 ```bash
 node tools/pkmn.mjs calc --attacker-file teams/me.txt --defender-file teams/opp.txt --move 地震
 node tools/pkmn.mjs calc --attacker "Garchomp" --defender "Flutter Mane" --move "Earthquake" --doubles
+# 古代活性/夸克充能：calc 完全不建，必须显式告诉它【提的是哪一项】（不给就是 ×1）
+node tools/pkmn.mjs calc --attacker "Great Tusk" --defender "Garganacl" --move "Ice Spinner" --paradox-p1 atk
 node tools/pkmn.mjs speed --attacker 烈咬陆鲨 --defender 振翼发 --scarf p1 --tailwind p2
 ```
 
@@ -79,7 +81,7 @@ node tools/q.mjs 雄伟牙 天蝎王                          # 战斗中 0.16 �
 ### 自检
 
 ```bash
-node tools/_verify-core.mjs    # 多段招二维数组 + 速度修正（23 项断言，不联网）
+node tools/_verify-core.mjs    # 多段招二维数组 + 速度修正 + 古代活性倍率（32 项断言，不联网）
 npm run mcp:test               # MCP 握手 + 8 个工具各调一次
 ```
 
@@ -248,6 +250,11 @@ MCP 完整握手 + 8 工具调用。
 - 道具只覆盖对战相关项（例如「精灵球」不在对战数据里，属正常）。
 - `@smogon/calc` 的部分机制要自己补（画皮、结冻头、结实、气势披带），
   另一些它已经建了（多重鳞片、幻影防守）—— **具体清单见 [`AGENTS.md`](AGENTS.md)**。
+- **古代活性 / 夸克充能（含驱动能量）calc 完全不建**（实测：四种写法伤害一模一样）。
+  `calc` 用 `--paradox-p1 atk`（攻方被提的那一项）、`--paradox-p2 spd`（守方）显式打开，
+  倍率取自引擎源码 `chainModify([5325,4096])` = **×1.30005**。
+  **不给参数就是 ×1 —— 代码不猜「它多半提了攻」**；猜出来的数字是假事实。
+  提的是速度时对伤害没有影响，别顺手乘。
 
 ---
 

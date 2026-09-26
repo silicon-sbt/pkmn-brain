@@ -65,7 +65,9 @@ console.log('\n---- Ogerpon vs Cyclizar：剑舞 ----');
 console.log(String(bSd).replace(/。\s*/g, '。\n'));
 check('剑舞选项带先后手', /【先后手】/.test(String(bSd)));
 check('拍落选项也带先后手', /【先后手】/.test(String(bKnock)));
-check('打平时措辞明确说【不是亏】', /但这【不是亏】/.test(String(bSd)));
+// 打平那一档的措辞在 _verify-setup.mjs 里另有专门的自检（原来写「不是亏」，
+// 实测被 instructions 的判据⑧打成「不值得」⇒ 现在改成【★白赚】这句正面表述）。
+check('打平时措辞明确说【白赚】（不能说成「没差别」）', /【★白赚/.test(String(bSd)));
 check('不再写「省不出回合」这种偏负面的说法', !/强化省不出回合/.test(String(bSd)));
 
 // ── ③ 对手【只有普通招】但更快：必须说「它更快 X > 你 Y」，而不是「先制」

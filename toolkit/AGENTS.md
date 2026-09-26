@@ -108,7 +108,20 @@ Leftovers 官方「吃剩的东西」但大家都说「剩饭」；Jolly 官方�
 
 **⚠️ `@smogon/calc` 建了什么、没建什么 —— 必须先写对拍测出来，再决定要不要自己补**
 - ✅ **已建模**：多重鳞片 Multiscale、幻影防守 Shadow Shield（实测快龙吃暗影球 199-235 → 99-117，正好一半）
-- ❌ **没建模**：画皮 Disguise、结冻头 Ice Face、结实 Sturdy、气势披带 Focus Sash
+- ❌ **没建模**：画皮 Disguise、结冻头 Ice Face、结实 Sturdy、气势披带 Focus Sash、
+  **古代活性 / 夸克充能（含驱动能量）**
+- **古代活性 / 夸克充能**：实测四种写法（不给 / `ability:'Protosynthesis'` / `item:'Booster Energy'` /
+  两者都给）伤害**一模一样**；构造后改 `stats.atk`、`rawStats.atk` 也全被忽略。
+  倍率取自引擎源码 `data/abilities.js` 的 `onModifyAtk/Def/SpA/SpD → chainModify([5325, 4096])` = **×1.30005**
+  （速度档是 `onModifySpe → chainModify(1.5)`）。
+  共享实现在 `lib.mjs` 的 `PARADOX_MULT` / `paradoxStats` / `paradoxMult` ——
+  **brain 也 import 这一份**，两边不许各写一个（漂移的方向就是「面板和 CLI 给出不同的数字」）。
+  `pkmn.mjs calc` 用 `--paradox-p1 atk` / `--paradox-p2 spd` 显式打开，**不给就是 ×1**（代码不猜它提了哪一项）。
+  两个易漏点：**扑击 Body Press 看防御**（提 `def` 才生效）、
+  **精神冲击 / 精神击破 / 神秘之剑是特攻招但打物防**（对面提 `def` 要减）。
+  另外 `calc` 的 `desc` 字段是 calc 的【原始】文案、不含这个缩放，缩放过会挂一句口径提醒 ——
+  两个互相矛盾的数字并排出现就是假事实。
+  自检：`node tools/_verify-core.mjs` 的 ③（9 项断言）。
 - 我一度凭印象说「Multiscale 我们一个都没建模」——**是错的**，差点双重减半。
   **凡「calc 支不支持 X」，一律先写个对拍测出来。**
 - 没建模的四项要自己补，规则（已对过引擎源码）：

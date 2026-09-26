@@ -3,7 +3,8 @@
 // dex | move | set | calc | speed | team | sim | formats
 import { readFileSync } from 'node:fs';
 import { parseArgs } from 'node:util';
-import { parseImportable, loadTeam, runBattle, zhToEn, enToZh, zhInfo, damageRolls, finalSpeed } from './lib.mjs';
+import { parseImportable, loadTeam, runBattle, zhToEn, enToZh, zhInfo, damageRolls, finalSpeed,
+  paradoxMult, PARADOX_MULT } from './lib.mjs';
 import { resolveEngine, listFormats, loadShowdown } from './engine.mjs';
 
 const argv = process.argv.slice(2);
@@ -21,6 +22,8 @@ const { values, positionals } = parseArgs({
     // 速度修正：配置里本来就有的（围巾/天气特性）现在自动读，这几个是【额外假设】
     weather: { type: 'string' }, booster: { type: 'string' },
     'boost-p1': { type: 'string' }, 'boost-p2': { type: 'string' },
+    // 古代活性/夸克充能【提的是哪一项】：'atk'|'def'|'spa'|'spd'|'spe'（calc 不建，自己乘）
+    'paradox-p1': { type: 'string' }, 'paradox-p2': { type: 'string' },
     engine: { type: 'string', default: 'auto' },
     zh: { type: 'boolean', default: false },
   },
@@ -95,14 +98,27 @@ if (cmd === 'dex') {
   const moveEn = zhToEn('moves', values.move);
   const f = new Field({ gameType: isDoubles() ? 'Doubles' : 'Singles' });
   const res = calculate(g, atk, def, new Move(g, moveEn), f);
+  // ★ 古代活性 / 夸克充能（含驱动能量）：@smogon/calc 完全没建（实测四种写法伤害一模一样）。
+  //   倍率与「提的是哪一项」都走 lib.mjs（和 brain 的同一份），这里只把命令行给的两项传进去。
+  //   不给 --paradox-pN 就是 1.0 —— 代码不猜「它多半提了攻」，猜出来的数字是假事实。
+  const pm = paradoxMult(values['paradox-p1'] || null, values['paradox-p2'] || null,
+    moveEn, new Move(g, moveEn).category);
   // ★ 多段招的 damage 是二维数组（外层=第几下）。直接 Math.max 会 NaN，
   //   而 flat() 会静默给你【单下】的区间（种子机关枪被报成 72-86，真实是 216-258）。
-  const { total, perHit, multiHit, hits, groups } = damageRolls(res);
+  const raw = damageRolls(res);
+  const scale = (r) => pm === 1 ? r : [Math.round(r[0] * pm), Math.round(r[1] * pm)];
+  const { total: _t, perHit: _p } = raw;
+  const { multiHit, hits, groups } = raw;
+  const total = scale(_t), perHit = scale(_p);
   const hp = def.stats.hp;
   const ko = res.kochance();
   const pc = (x) => (x / hp * 100).toFixed(1) + '%';
   out({
-    desc: res.desc(), gameType: isDoubles() ? 'Doubles' : 'Singles',
+    // ⚠️ res.desc() 是 calc 的【原始】文案，它【不含】古代活性/夸克充能。
+    //   缩放之后还照抄它会得到两个互相矛盾的数字（desc 58-69 / damage 75-90）——
+    //   数字离开口径就是假事实，所以这里必须把口径钉在 desc 上。
+    desc: pm === 1 ? res.desc() : res.desc() + '  ←【这一行是 calc 原始文案，未含古代活性/夸克充能，以 damage/percent 为准】',
+    gameType: isDoubles() ? 'Doubles' : 'Singles',
     attackerHp: atk.stats.hp, defenderHp: hp,
     damage: total,
     percent: [pc(total[0]), pc(total[1])],
@@ -113,6 +129,10 @@ if (cmd === 'dex') {
       note: '多段招：damage/percent 是【' + hits + ' 下的合计】；命中数本身可变时（种子机关枪 2-5 下）这也是估算',
       byHit: groups } : {}),
     rolls: total,
+    ...(pm !== 1 ? { paradoxMult: Number(pm.toFixed(5)),
+      paradoxNote: '已按古代活性/夸克充能 ×' + PARADOX_MULT.toFixed(5) + '（引擎 chainModify([5325,4096])）' +
+        '缩放：--paradox-p1=' + (values['paradox-p1'] || '-') + ' --paradox-p2=' + (values['paradox-p2'] || '-') +
+        '。⚠️ calc 本身完全不建这个特性，不给参数就是 ×1 —— 别把没乘的数当准数。' } : {}),
   });
 } else if (cmd === 'speed') {
   const { Generations } = await import('@smogon/calc');

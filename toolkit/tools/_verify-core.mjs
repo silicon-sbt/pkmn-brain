@@ -9,7 +9,7 @@
 //     队文件里写着 @ Choice Scarf 也会被无视，报出反的先后手。
 // 这个自检不联网、不调任何模型，纯本地对拍。
 import { Generations, Pokemon, Move, calculate } from '@smogon/calc';
-import { damageRolls, finalSpeed } from './lib.mjs';
+import { damageRolls, finalSpeed, paradoxMult } from './lib.mjs';
 
 const g = Generations.get(9);
 let bad = 0;
@@ -46,6 +46,24 @@ check('其他天气不误触发', finalSpeed(swift, { weather: 'SunnyDay' }).eff
 check('能力等级 +2 = ×2', finalSpeed(valiant, { boost: 2 }).effective === VI.effective * 2);
 check('麻痹 ×0.5', finalSpeed(valiant, { para: true }).effective === Math.floor(VI.effective * 0.5));
 check('顺风 ×2', finalSpeed(valiant, { tailwind: true }).effective === VI.effective * 2);
+
+// ── ③ 古代活性 / 夸克充能：calc 完全没建（实测四种写法伤害一模一样），必须自己乘
+console.log('');
+console.log('③ 古代活性/夸克充能 ×1.30005（引擎 chainModify([5325,4096])）');
+const plain = damageRolls(calculate(g, bre, gar, new Move(g, 'Ice Beam')));
+const pmAtk = paradoxMult('spa', null, 'Ice Beam', 'Special');   // 冰冻光束是特攻招 ⇒ 看特攻项
+const pmNo = paradoxMult(null, null, 'Ice Beam', 'Special');
+check('不给就是 ×1（代码不猜「它多半提了攻」）', pmNo === 1);
+check('特攻手提特攻 → 乘 1.30005', Math.abs(pmAtk - 1.30005) < 1e-4, String(pmAtk));
+check('物理招提特攻【不】生效（项要对上）', paradoxMult('spa', null, 'Headlong Rush', 'Physical') === 1);
+check('提的是速度就不加成伤害', paradoxMult('spe', null, 'Ice Beam', 'Special') === 1);
+check('扑击看【防御】：提 def 才生效', paradoxMult('def', null, 'Body Press', 'Physical') > 1
+  && paradoxMult('atk', null, 'Body Press', 'Physical') === 1);
+check('精神冲击打物防：对面提 def → 除', paradoxMult(null, 'def', 'Psyshock', 'Special') < 1);
+check('对面提 spd 对精神冲击无效（它打物防）', paradoxMult(null, 'spd', 'Psyshock', 'Special') === 1);
+check('状态招不乘', paradoxMult('atk', 'def', 'Swords Dance', 'Status') === 1);
+check('数值确实变了（不是乘了个寂寞）',
+  Math.round(plain.total[1] * pmAtk) > plain.total[1], plain.total[1] + ' -> ' + Math.round(plain.total[1] * pmAtk));
 
 console.log(bad ? ('\n❌ ' + bad + ' 项失败') : '\n✅ 全部通过');
 process.exit(bad ? 1 : 0);
