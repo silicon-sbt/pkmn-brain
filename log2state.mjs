@@ -15,6 +15,10 @@
 import { readFileSync } from 'node:fs';
 
 const HP_RE = /^(\d+)\/(\d+)$/;
+// 引擎把「谁触发的」写成前缀：'ability: Disguise' / 'move: Substitute' / 'item: Leftovers'。
+// 只去非字母会得到 'abilitydisguise' 这种拼不回来的 id —— 必须先剥掉 "xxx: " 前缀。
+// （2026-09-27 实测：画皮那条判断因为这个前缀，一次都没生效过。）
+const condId = (s) => String(s == null ? '' : s).toLowerCase().replace(/^[a-z]+:\s*/, '').replace(/[^a-z]/g, '');
 const key = (side, sp) => side + ':' + sp;
 const cap = (n) => Math.max(-6, Math.min(6, n));
 
@@ -31,6 +35,14 @@ export function parseLog(log) {
     // ★ 古代活性 / 夸克充能【提的是哪一项】：'atk'|'def'|'spa'|'spd'|'spe'
     //   引擎日志是 |-start|p1a: 大伟牙|protosynthesisatk —— 以前只认 ...spe，攻击档全丢了。
     paradox: {},
+    // ★ 替身（volatile）。引擎里 subst 的 HP = floor(maxhp/4)，而且【超出部分不结转】
+    //   （moves.js:18382-18384 把 damage 截到 subst 剩余血量）。
+    //   不记这一条，面板会在对手有替身时照样说「大概率一击必杀」—— 实测 2026-09-27 那局
+    //   （对手天蝎王替身档在场上，面板写 Kowtow Cleave 72-84% 大概率一击必杀）。
+    sub: {},
+    // ★ 每个槽位的换人历史（最近的在前）。用来识别【换出去又换回来】——
+    //   换人是对称的，来回换等于白送对手两个回合（实测陷入过 140 回合的换人循环）。
+    slotHistory: {},
     hazards: { p1: [], p2: [] }, turn: 0,
   };
   for (const raw of log) {
@@ -61,9 +73,11 @@ export function parseLog(log) {
       if (prev && prev !== name && (kind === 'switch' || kind === 'drag')) {
         delete out.boosts[key(side, prev)];
         delete out.paradox[key(side, prev)];   // 古代活性/夸克充能 的 volatile 也随换人消失
+        delete out.sub[key(side, prev)];       // 替身也是 volatile，换下去就没了
         out.speedFlag[key(side, prev)] = false;
       }
       out.species[slot] = name;
+      (out.slotHistory[slot] ||= []).push(name);
       out.everSeen[side] && out.everSeen[side].add(name);
       const m = (p[4] || '').match(HP_RE);
       out.hp[key(side, name)] = m ? Math.round(Number(m[1]) / Number(m[2]) * 100) : 100;
@@ -105,11 +119,24 @@ export function parseLog(log) {
     if (kind === '-enditem') { if (!out.items[K]) out.items[K] = '(已消耗) ' + (p[3] || ''); continue; }
     if (kind === '-ability') { out.abilities[K] = p[3]; continue; }
     if (kind === '-activate') {
-      // ★ 画皮 / 结冻头 被打破时，Showdown 发的是 |-activate|p2a: Mimikyu|Disguise。
+      // ★ 画皮 / 结冻头 被打破时，Showdown 发的是 |-activate|p2a: Mimikyu|ability: Disguise。
       //   不记这一下，harness.firstHitBlock 会【整局】都以为它还有画皮，
       //   把真实伤害一直报成 0 —— 面板会一直说「这一击被画皮挡下，打不死」。
-      const what = String(p[3] || '').toLowerCase().replace(/[^a-z]/g, '');
+      //   ⚠️ 这里原来只把非字母去掉，得到的是 'abilitydisguise' ≠ 'disguise' ——
+      //      也就是**这条"修好了"的判断其实一次都没生效过**（2026-09-27 实测日志
+      //      battle-20260927-123200 第 347 行 |-activate|p2a: Mimikyu|ability: Disguise）。
+      const what = condId(p[3]);
       if (what === 'disguise' || what === 'iceface') out.broken[K] = what;
+      continue;
+    }
+    // ★ 形态变化也要认：画皮破了引擎会发 |detailschange|p2a: Mimikyu|Mimikyu-Busted, …
+    //   （结冻头是 Eiscue-Noice）。和上面那条互为兜底 —— 两条都记，坏一条还有另一条。
+    if (kind === 'detailschange') {
+      const nm = String(p[3] || '').split(',')[0].trim();
+      if (/-Busted$/i.test(nm)) out.broken[K] = 'disguise';
+      else if (/-Noice$/i.test(nm)) out.broken[K] = 'iceface';
+      // ⚠️ 不改 out.species[slot]：Showdown 的槽位标签换形态后【不变】
+      //   （|-damage|p2a: Mimikyu|… 一直是 Mimikyu），改了反而会让后面的 key 全对不上。
       continue;
     }
     if (kind === '-terastallize') { out.tera[K] = p[3]; continue; }
@@ -129,13 +156,16 @@ export function parseLog(log) {
     // ★ 夸克充能 / 古代活性 的提速档（实测日志：|-start|p2a: Iron Treads|quarkdrivespe）。
     //   它决定了铁辙迹能不能先手 —— 不记这一条，速度比较就是错的。
     if (kind === '-start' || kind === '-end') {
-      const what = String(p[3] || '').toLowerCase().replace(/[^a-z]/g, '');
+      const what = condId(p[3]);
       const px = /^(protosynthesis|quarkdrive)(atk|def|spa|spd|spe)$/.exec(what);
       if (px) {
         if (kind === '-start') { out.paradox[K] = px[2]; out.speedFlag[K] = (px[2] === 'spe'); }
         else { delete out.paradox[K]; out.speedFlag[K] = false; }
       } else if (kind === '-end' && (what === 'quarkdrive' || what === 'protosynthesis')) {
         delete out.paradox[K]; out.speedFlag[K] = false;
+      } else if (what === 'substitute') {
+        // |-start|p1a: Gliscor|Substitute   /   |-end|p1a: Gliscor|Substitute（被打掉）
+        if (kind === '-start') out.sub[K] = true; else delete out.sub[K];
       }
       continue;
     }
@@ -174,6 +204,8 @@ export function stateFromLog(log, meSide, myTeam, META) {
     ability: m.ability, item: m.item, nature: m.nature, evs: m.evs, moves: m.moves,
     boosts: P.boosts[key(meSide, sp)] || {},
     paradox: P.paradox[key(meSide, sp)] || null,
+    sub: !!P.sub[key(meSide, sp)],          // 替身（volatile）—— 有它时这一发打不到本体
+
     teraType: teraOf(sp),
     teraAvailable: (!teraOf(sp) && m.teraType) ? m.teraType : undefined,
     intact: P.broken[key(meSide, sp)] ? false : undefined,
@@ -199,6 +231,7 @@ export function stateFromLog(log, meSide, myTeam, META) {
       //   面板连着让 5 只上去送。详见 brain/AGENTS.md「对手的能力等级」。
       boosts: P.boosts[K] || {},
       paradox: P.paradox[K] || null,
+      sub: !!P.sub[K],                       // ★ 对手有替身时，我们的伤害全打在替身上
       nature: meta.nature, evs: meta.evs,
       assumed: !P.abilities[K] || !P.items[K],
       // ★ 画皮/结冻头已经用掉了就必须告诉 calc 那一侧，否则 firstHitBlock 会一直拦着
@@ -219,11 +252,13 @@ export function stateFromLog(log, meSide, myTeam, META) {
     turn: P.turn,
     me: {
       active: { species: myActive, hpPercent: P.hp[key(meSide, myActive)] ?? 100,
+                sub: !!P.sub[key(meSide, myActive)],
                 set: meMon ? setOf(meMon, myActive) : {} },
       bench,
     },
     opp: {
-      active: { species: oppActive, hpPercent: P.hp[key(oppSide, oppActive)] ?? 100 },
+      active: { species: oppActive, hpPercent: P.hp[key(oppSide, oppActive)] ?? 100,
+                sub: !!P.sub[key(oppSide, oppActive)] },
       revealed: seenOpp,
       revealedMoves,
       sets: oppSets,
@@ -232,6 +267,8 @@ export function stateFromLog(log, meSide, myTeam, META) {
     // ★ 先后手三件套，交给 harness 算最终速度
     _weather: P.weather,
     _status: { mine: P.status[key(meSide, myActive)] || null, theirs: P.status[key(oppSide, oppActive)] || null },
+    // ★ 我方这个槽位的换人历史（不含当前这只，最近的在前）。harness 用它给「再换回去」贴警告。
+    _myHistory: (P.slotHistory[meSide + 'a'] || []).slice(0, -1).reverse(),
     _mySpeedFlag: !!P.speedFlag[key(meSide, myActive)],
     _oppSpeedFlag: !!P.speedFlag[key(oppSide, oppActive)],
     _players: P.players,

@@ -12,7 +12,11 @@
 //
 // 端点:
 //   GET  /health   → { ok, jev }
-//   POST /decide   { log: "<对战日志全文>", me?: "<你的PS用户名>", team?: "teams/ou-a.txt" }
+//   POST /decide   { log: "<对战日志全文>", me?: "<你的PS用户名>", team?: "teams/ou-a.txt",
+//                    request: <整包 room.request>, localTeams: [{name, packedTeam}, …] }
+//                  ★ request 与 localTeams 都【原样转发】，服务端自己解析并挑来源 ——
+//                    浏览器侧挑字段曾经导致「挑空了服务端看不出来、悄悄回退兜底队伍」。
+//                  ★ 同一份 log + 同一个 requestType 在 5 分钟内只问 Jev 一次（见 dedupeKey）。
 //
 // 单独调试（不开服务）:
 //   node serve.mjs --log side/jev/_sample-battle.log --me gilicon
@@ -23,6 +27,7 @@ import { stateFromLog, isTeamPreview, previewStateFromLog } from './log2state.mj
 import { buildQuestion, buildTeamPreviewQuestion, buildForceSwitchQuestion, decideLead, resolveTera } from './harness.mjs';
 import { askJev, jevAvailable } from './jev.mjs';
 import { loadTeam, zhInfo } from './toolkit/tools/lib.mjs';
+import { pickLocalTeam, alignLocal } from './team-local.mjs';
 import { logDecision } from './decide-log.mjs';
 import { cfg, announceConfig } from './config.mjs';
 announceConfig();
@@ -37,6 +42,23 @@ const { Dex } = await import('@pkmn/dex');
 
 // 简单速率限制：脚本若陷入循环会持续烧 Jev 额度（付费 API）。超限就拒绝，不是静默丢弃。
 const RATE_MAX = Number(process.env.JEV_RATE_MAX || cfg.server.rateMaxPerMinute);
+// ★★ 同一回合的重复请求：服务端兜底去重（2026-09-27 实测又发生了一次）★★
+//   浏览器那侧的去重键是 turn + requestType + rqid，但决策日志显示【每一回合都问了两次】
+//   （两三条日志的 logLines 完全相同、间隔 1~3 秒）。原因还没定位到，但代价是确定的：
+//   双倍烧 Jev 额度，而且两次答案可能不一样（实测 #8 move:futuresight 0.27 / #9 switch:greattusk 0.31），
+//   面板显示哪个全看谁后回来。
+//   所以这里再加一道【服务端】兜底：同一份日志 + 同一个 requestType 在 TTL 内只问一次，
+//   第二次直接回上一次的答案。**命中要打出来**（静默复用 = 另一种静默失败）。
+const recentDecisions = new Map();     // key → { at, out }
+const DEDUPE_MS = 5 * 60 * 1000;
+function dedupeKey(raw, body) {
+  const req = body && body.request;
+  const rt = (req && req.requestType) || '?';
+  let h = 0x811c9dc5;                                  // FNV-1a，够用就行
+  for (let i = 0; i < raw.length; i++) { h ^= raw.charCodeAt(i); h = Math.imul(h, 0x01000193) >>> 0; }
+  return rt + ':' + raw.length + ':' + h.toString(36);
+}
+
 let rateWindow = Date.now(), rateCount = 0;
 function rateOk() {
   const now = Date.now();
@@ -47,9 +69,18 @@ function rateOk() {
 // ══════════ 自动读取【你正在用的队伍】 ══════════
 // 不再写死 teams/ou-a.txt —— 你换队、换招式、换道具，这里自动跟着变。
 //
-// 数据来源：对战页的 room.request.side.pokemon[]，每个元素含
-//   details(物种) / moves(招式) / item / ability / teraType / stats(精确数值) / condition(当前HP)
-// 前四项直接可用；努力值和性格从 stats 反解（L100、IV31 的公式可逆）。
+// 两条路，**本地队伍优先**（判定逻辑在 team-local.mjs，自检在 _verify-team-local.mjs）：
+//
+//   ① 浏览器转发的 PS.teams.list → packedTeam 解出来带【精确】的 nature/evs/ivs。
+//      为什么需要它：request 里根本没有这三项（引擎 pokemon.js:785 getSwitchRequestData 只发最终
+//      数值 stats）。从数值反解在 L100 上精确，但两处会坏 —— 这只倒下（condition="0 fnt"）时
+//      HP 努力值被当成 0；等级非 100（VGC/Champions）时反解直接放弃、努力值全 0。
+//   ② 认不出来才退回 request.side.pokemon[]，每个元素含
+//      details(物种) / moves(招式) / item / ability / teraType / stats(精确数值) / condition(当前HP)
+//      前四项直接可用；努力值和性格从 stats 反解（L100、IV31 的公式可逆）。
+//
+// ⚠️ 哪条路成功、失败时为什么，全部由 resolveTeam() 写进 teamSource，黑窗口打一行、
+//    面板上也显示一行 —— 这是本项目踩过最多的坑（静默回退兜底队伍，玩家换了队也不生效）。
 const NATURES = (() => {
   const out = [];
   const stats = ['atk', 'def', 'spa', 'spd', 'spe'];
@@ -138,6 +169,40 @@ export function setFromRequest(mon) {
   };
 }
 
+// ★ 队伍解析：先试【浏览器里本地存着的队伍】（精确），不行再回退反解。
+//   为什么值得：request 里【没有努力值/性格/个体值】，反解在 L100 上虽然精确，
+//   但 HP 读不出来（condition="0 fnt"）时会当成 0，等级非 100（VGC/Champions）时直接全 0。
+//   本地队伍（PS.teams.list[].packedTeam）这几项都是精确的。
+//
+//   ⚠️ 但它是【第二个真相来源】，本项目在这上面栽过（挑空字段悄悄回退兜底队）。
+//      所以规矩是：匹配全部在服务端做、只用它取 nature/evs/ivs、其余字段一律用 request 的，
+//      并且「用了哪条路 / 为什么没用本地」都要写进 teamSource 打出来。
+//      判定逻辑与自检在 team-local.mjs / _verify-team-local.mjs。
+function resolveTeam(mons, localTeams) {
+  const loc = pickLocalTeam(localTeams, mons, {
+    // 我们的数值模型能不能反解这一只？不能（L50/Champions 的数值系统）就不拿数值当否决条件
+    modelFits: (m) => setFromRequest(m)._exactSource !== 'none',
+  });
+  if (loc.sets) {
+    const merged = alignLocal(loc.sets, mons);
+    const miss = merged.filter(x => !x._localHit).length;
+    const team = merged.map((x, i) => {
+      if (x._localHit) return { ...x, _exactSource: 'local' };
+      // 理论上一只都不该掉队（特征已经对过）。真掉了就【单只】退回反解 —— 不整队放弃，
+      // 也绝不静默：miss 会被写进 teamSource 和黑窗口。
+      return { ...setFromRequest(mons[i]), _exactSource: 'request反解(本地没对上)' };
+    });
+    return { team, detail: loc, miss,
+      source: '正在用的队（本地「' + loc.picked + '」· ' + loc.source + '，努力值/性格/个体值精确）' +
+        (miss ? ' ⚠️ 有 ' + miss + ' 只本地没对上，已单只退回反解' : '') };
+  }
+  const team = mons.map(setFromRequest);
+  const derived = team.filter(x => x._exactSource === 'derived').length;
+  return { team, detail: loc, miss: 0,
+    source: '正在用的队（request 反解，' + derived + ' 只由实时数值反解）' +
+      (loc.why ? ' ⚠️ 本地队伍没用上：' + loc.why : '') };
+}
+
 // 从各种可能的形状里找「我方队伍」，并【说明是在哪儿找到的】。
 // 找到 0 只时返回 where='未找到'，调用方会把它连同 request 的完整结构一起打出来。
 function pickTeamFromRequest(req) {
@@ -200,7 +265,7 @@ function sideOf(lines, me) {
   return 'p1';
 }
 
-export async function decide({ log, me, team, oppTeam, request: reqRaw }) {
+export async function decide({ log, me, team, oppTeam, request: reqRaw, localTeams }) {
   const lines = String(log || '').split(/\r?\n/).filter(Boolean);
   const t0 = Date.now();
 
@@ -213,13 +278,16 @@ export async function decide({ log, me, team, oppTeam, request: reqRaw }) {
   let myTeam = null, teamSource = '';
   if (teamPick.mons && teamPick.mons.length) {
     try {
-      myTeam = teamPick.mons.map(setFromRequest);
-      const derived = myTeam.filter(x => x._exactSource === 'derived').length;
-      teamSource = '正在用的队（' + teamPick.where + '，' + derived + ' 只由实时数值反解）';
+      const res = resolveTeam(teamPick.mons, localTeams);
+      myTeam = res.team;
+      teamSource = res.source;
       console.log('[队伍] ' + teamSource);
       console.log('[队伍] ' + myTeam.map(x => x.species + '(' + (x.item || '无道具') + '/' +
         (x.moves || []).length + '招/太晶' + (x.teraType || '?') + ')' +
-        (x._exactSource === 'derived' ? '' : ' ⚠️' + x._exactSource)).join(' '));
+        (x._exactSource === 'local' ? '' : ' ⚠️' + x._exactSource)).join(' '));
+      if (res.detail && res.detail.broken) {
+        console.log('[队伍] ⚠️ 本地队伍里有 ' + res.detail.broken + ' 套解不开（没加载/损坏），已跳过');
+      }
     } catch (e) { console.log('[队伍] 解析实时队伍失败，回退文件: ' + String(e.message || e).slice(0, 160)); myTeam = null; }
   } else {
     console.log('[队伍] ⚠️ 没收到你正在用的队伍。request=' + describeReq(req));
@@ -436,9 +504,17 @@ const server = createServer(async (req, res) => {
       //   请求没发出来、还是服务端卡住了。
       console.log('[收到] me=' + (body.me || '-') + ' 日志=' + raw.split(/\r?\n/).length + '行' +
         ' oppTeam=' + ((body.oppTeam || []).length || '无') +
+        ' 本地队=' + ((body.localTeams || []).length || '无') +
         ' 含poke=' + (raw.includes('|poke|') ? '是' : '否') +
         ' 含switch=' + (raw.includes('|switch|') ? '是' : '否') +
         ' request=' + (body.request ? '有' : '无'));
+      const dk = dedupeKey(raw, body);
+      const dup = recentDecisions.get(dk);
+      if (dup && Date.now() - dup.at < DEDUPE_MS) {
+        console.log('[去重] 和 ' + Math.round((Date.now() - dup.at) / 1000) +
+          's 前那次是同一个决策（同一份日志 + 同一个 requestType）→ 直接回上次答案，不再问 Jev');
+        return send(200, { ...dup.out, deduped: true });
+      }
       const t0 = Date.now();
       let out;
       try {
@@ -455,6 +531,11 @@ const server = createServer(async (req, res) => {
       //   写日志自己吞掉异常（只打控制台），绝不能因为它失败而让这一回合没有建议。
       logDecision({ raw, body, out, ms: Date.now() - t0 });
       delete out._criteria; delete out._instructions; delete out._answers;
+      recentDecisions.set(dk, { at: Date.now(), out });
+      // 顺手清掉过期的，别让 Map 无限长（一局最多几十个回合，这里只是兜底）
+      if (recentDecisions.size > 200) {
+        for (const [k, v] of recentDecisions) if (Date.now() - v.at > DEDUPE_MS) recentDecisions.delete(k);
+      }
       return send(200, out);
     }
     send(404, { ok: false, msg: 'not found' });

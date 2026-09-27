@@ -79,5 +79,71 @@ const anyVerdict = verdicts.some(([, x]) => /【换上来就会|【换上来只�
 check('换人选项带「换上来会怎样」的判读', anyVerdict);
 for (const [id, x] of verdicts.slice(0, 3)) console.log('   ' + id + ' → ' + x.replace(/。\s*/g, '。\n      ').slice(0, 220));
 
+console.log('\n④ 换人文案必须说「换上它就能撒钉子」（2026-09-27 实测：撒钉手整局没上过场）');
+{
+  // 起因：我方 Glimmora 是队里唯一的撒钉手，可换人文案只写「吃 180%，绝对别选它」「能打 166%」，
+  // 撒钉这一整类价值一个字都没有 ⇒ 它永远是最差的选项。「没有标签的选项 = 不存在的选项」，第 5 次。
+  const { buildQuestion } = await import('./harness.mjs');
+  const GLIMMORA = { ability: 'Toxic Debris', item: 'Focus Sash', nature: 'Timid',
+    evs: { hp: 0, atk: 0, def: 0, spa: 252, spd: 4, spe: 252 },
+    moves: ['Stealth Rock', 'Spikes', 'Mortal Spin', 'Earth Power'], boosts: {} };
+  const KING = { ability: 'Supreme Overlord', item: 'Leftovers', nature: 'Adamant',
+    evs: { hp: 252, atk: 252, def: 0, spa: 0, spd: 4, spe: 0 }, moves: ['Kowtow Cleave'], boosts: {} };
+  const st = {
+    turn: 1,
+    me: { active: { species: 'Kingambit', hpPercent: 100, sub: false, choices: null, set: KING },
+      bench: [{ species: 'Glimmora', hpPercent: 100, set: GLIMMORA }] },
+    opp: { active: { species: 'Glimmora', hpPercent: 100, sub: false },
+      revealed: ['Glimmora', 'Gholdengo', 'Great Tusk', 'Kingambit', 'Dragapult', 'Slowking-Galar'],
+      revealedMoves: { Glimmora: ['Earth Power', 'Power Gem'] },
+      sets: { Glimmora: { ability: 'Toxic Debris', item: 'Focus Sash', nature: 'Timid',
+        evs: { hp: 0, atk: 0, def: 0, spa: 252, spd: 4, spe: 252 }, moves: ['Earth Power'] } } },
+    _hazards: { mine: [], theirs: [] }, _players: {}, _warnings: [],
+  };
+  const cc = (buildQuestion(st).questions.action.criteria || {});
+  const t2 = String(cc['switch:glimmora'] || '');
+  check('换人文案里出现【撒钉子】这个标签', /换上它就能【撒钉子】/.test(t2));
+  check('并且带具体数字（对方每只吃多少）', /对方 6 只吃到的伤害/.test(t2));
+  check('还带「收益很低」这种反面判读，不是只报喜', /收益很低|只每次上场要掉 25% 以上/.test(t2));
+  check('我方没有钉子招的宝可梦不该被贴上这个标签',
+    !/撒钉子/.test(String(cc['move:kowtowcleave'] || '')));
+}
+
+console.log('\n⑤ 选人阶段的先发选项也要贴【撒钉/除钉】标签（2026-09-27 补）');
+{
+  // 起因：总则②早就写着「先发能设置场地通常加分」，可**每个选项里一个字都没有** ——
+  // 规则在总则、事实不在选项上，模型选不出来。「没有标签的选项 = 不存在的选项」，第 5 次。
+  const { previewStateFromLog } = await import('./log2state.mjs');
+  const { buildTeamPreviewQuestion } = await import('./harness.mjs');
+  const META2 = JSON.parse((await import('node:fs')).readFileSync('./toolkit/data/meta-sets.json', 'utf8'));
+  const LOG = ['|player|p1|Me|', '|player|p2|Them|', '|clearpoke|',
+    '|poke|p1|Landorus-Therian|', '|poke|p1|Great Tusk|', '|poke|p1|Zamazenta|',
+    '|poke|p2|Weavile, M|', '|poke|p2|Gliscor, M|', '|poke|p2|Primarina, M|', '|teampreview|'];
+  const team = [
+    { species: 'Landorus-Therian', item: 'Rocky Helmet', ability: 'Intimidate', nature: 'Jolly',
+      evs: { hp: 0, atk: 252, def: 0, spa: 0, spd: 4, spe: 252 },
+      moves: ['Stealth Rock', 'Earthquake', 'U-turn', 'Stone Edge'] },
+    { species: 'Great Tusk', item: 'Leftovers', ability: 'Protosynthesis', nature: 'Jolly',
+      evs: { hp: 0, atk: 252, def: 0, spa: 0, spd: 4, spe: 252 },
+      moves: ['Rapid Spin', 'Headlong Rush', 'Close Combat', 'Knock Off'] },
+    { species: 'Zamazenta', item: 'Leftovers', ability: 'Dauntless Shield', nature: 'Jolly',
+      evs: { hp: 252, atk: 0, def: 4, spa: 0, spd: 0, spe: 252 },
+      moves: ['Iron Defense', 'Body Press', 'Crunch', 'Heavy Slam'] },
+  ];
+  const st = previewStateFromLog(LOG, 'p1', team, META2);
+  check('选人阶段拿到了状态（parseLog 要的是数组，不是字符串）', !!st);
+  const b2 = buildTeamPreviewQuestion(st);
+  const cc = (b2 && b2.questions.action.criteria) || {};
+  const lando = String(cc['lead:landorustherian'] || '');
+  const tusk = String(cc['lead:greattusk'] || '');
+  const zama = String(cc['lead:zamazenta'] || '');
+  check('带隐形岩的先发贴了【撒钉子】', /它能【撒钉子】/.test(lando));
+  check('并且附了具体吃到量（不是一句空话）', /对方 3 只吃到的伤害/.test(lando) && /平均每次换人掉 [\d.]+%/.test(lando));
+  check('带高速旋转的先发贴了【除钉】', /它能【除钉】/.test(tusk));
+  check('两样都没有的要【明说】没有（不能让读者默认它有）', /它【不会撒钉、也不会除钉】/.test(zama));
+  check('总则②指向了选项上的标签', /每个选项末尾都标了/.test(String(b2.questions.action.instructions)));
+  console.log('   ' + lando.slice(0, 150));
+}
+
 console.log(bad ? ('\n❌ ' + bad + ' 项失败') : '\n✅ 全部通过');
 process.exit(bad ? 1 : 0);

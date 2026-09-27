@@ -149,6 +149,49 @@ function paradoxMult(attackerSet, defenderSet, moveName, category) {
     moveName, category);
 }
 
+// koTier（机器可读的短档位）→ 中文短语。**拼句子只能用这个，不能用 verdict**：
+// verdict 是整句（可能带上替身/画皮那一长串），拿它拼会得到重复又读不通的句子，
+// 而且所有「verdict === 可一击必杀」之类的判断会静默失效。
+const TIER_ZH = {
+  immune: '无效（免疫）', '1HKO': '可一击必杀', likely: '大概率一击必杀',
+  multihit: '多段招（看命中几下）', endure: '满血时留 1 血', blocked: '被挡下',
+  'sub-break': '只能打掉替身', 'sub-nobreak': '连替身都打不破',
+};
+const tierZh = (t) => TIER_ZH[t] ||
+  ((/^(\d+)回合$/.exec(String(t || ''))) ? '需 ' + RegExp.$1 + ' 回合' : String(t || '未知'));
+
+// ---------- 0.95) 替身 ----------
+// 目标身上有没有替身、这一发会不会被它吃掉。没有替身返回 null。
+//   基准：替身血量 = floor(最大血 / 4)（引擎 moves.js:18365）。
+//   d = 这一发的乱数数组（单段招就是 16 档；多段招已经在 damageRolls 里合成合计）。
+function subInfoOf(defender, defenderSet, m, attackerSet, d, multiHit) {
+  if (!defenderSet || !defenderSet.sub) return null;
+  if (m.category === 'Status') {
+    // 状态招打不到有替身的对手（自身/场地招除外）—— 引擎里同样走 onTryPrimaryHit 的拦截
+    if (m.target === 'self' || m.target === 'allySide' || m.target === 'allyTeam' ||
+        m.target === 'foeSide' || m.target === 'all' || m.target === 'field') return null;
+    return { hp: 0, hpPct: 0, blocks: true, bypass: false, oneShot: false, dmg: 0,
+      turnsTotal: null, why: '状态招打不到替身' };
+  }
+  const hp = mk(defender, defenderSet).stats.hp;
+  const subHp = Math.floor(hp / 4);
+  const bypass = !!(m.flags && m.flags.bypasssub) ||
+    ((attackerSet && attackerSet.ability) === 'Infiltrator');
+  if (bypass) return { hp: subHp, hpPct: Math.round(subHp / hp * 100), blocks: false, bypass: true,
+    oneShot: false, dmg: Math.max(...d), turnsTotal: null,
+    why: (m.flags && m.flags.bypasssub) ? '音波招式穿替身' : '穿透特性穿替身' };
+  const dmg = Math.max(...d);                    // 最坏乱数下能打出多少点
+  const oneShot = dmg >= subHp;                  // 这一发够不够打掉替身
+  // 几回合：先花掉打替身的回合数，再按本体血量算。替身打掉后剩下的几下（多段招）直接算进本体。
+  const subTurns = oneShot ? 1 : Math.max(1, Math.ceil(subHp / Math.max(dmg, 1)));
+  let bodyTurns = Infinity;
+  const hi = Math.max(...d);
+  if (hi > 0) bodyTurns = Math.max(1, Math.ceil(100 / (hi / hp * 100)));   // 替身打掉之后，本体还要几下
+  return { hp: subHp, hpPct: Math.round(subHp / hp * 100), blocks: true, bypass: false, oneShot,
+    dmg, turnsTotal: Number.isFinite(subTurns + bodyTurns) ? subTurns + bodyTurns : null,
+    why: oneShot ? '这一发够打掉替身，但打不到本体' : '连替身都打不破' };
+}
+
 // ---------- 1) 事实计算 ----------
 // tera = 「这一发用太晶属性 X 打出去」。@smogon/calc 0.12 起支持：给 set 加 teraType 即视为已太晶，
 //   我方防御属性同时改变。0.11.0 完全不支持（写 teraType 被静默忽略，算出来和没太晶一样）。
@@ -186,6 +229,34 @@ function moveFeature(attacker, attackerSet, defender, defenderSet, mvName, hpPer
   const koChance = (koRolls / d.length) * (acc / 100);  // 真实击杀概率（含未命中）
   const expPct = ((d.reduce((a, b) => a + b, 0) / d.length) * (acc / 100)) / hp * 100; // 期望伤害%
 
+  // ★★ 替身：目标有替身时，这一发的伤害【全部打在替身上】，而且超出部分【不结转】。★★
+  //   引擎源码 data/moves.js:18358-18401（substitute 的 onTryPrimaryHit）：
+  //     · 替身血量 = Math.floor(maxhp / 4)
+  //     · damage > 替身剩余血量 时【截到替身剩余血量】——多出来的不会打到本体
+  //     · 三种情况不吃替身：target === source / move.flags.bypasssub（音波招式）/ move.infiltrates（穿透特性）
+  //     · 替身被打掉后，同一个多段招的【后续几下】会打到本体（每一下都是一次独立的主判定）
+  //   不处理它的后果实测过（2026-09-27 battle-20260927-115708 t13/t14）：
+  //   对手天蝎王替身档在场上（88% 血），面板照写「Kowtow Cleave 打掉约 72-84% 血，大概率一击必杀」——
+  //   而那一发只打掉了替身，它本体一点血都没掉。
+  const sub = subInfoOf(defender, defenderSet, m, atkSet, d, multiHit);
+  if (sub && sub.blocks) {
+    // 这一手打不到本体：verdict / 几确全部改成「先破替身」的口径
+    const verdictSub = sub.oneShot
+      ? '⚠️ 它有【替身】（' + sub.hp + ' 点 = 它最大血的 ' + sub.hpPct + '%）：你这一发【只会把替身打掉】，它本体一点血都不掉' +
+        (multiHit ? '（多段招会打穿替身，剩下的几下才打到本体）' : '')
+      : '⚠️ 它有【替身】（' + sub.hp + ' 点 = 它最大血的 ' + sub.hpPct + '%）：你这一发 ' +
+        sub.dmg + ' 点【连替身都打不破】，它本体一点血都不掉';
+    return { id: 'move:' + m.id, name: m.name, moveName: m.name, tera: tera || undefined,
+      kind: 'move', type: m.type, category: m.category,
+      bp: m.basePower, accuracy: acc, priority: m.priority || 0,
+      rawPctLo: pctLo, rawPctHi: pctHi, pctLo, pctHi,
+      turnsToKO: sub.turnsTotal,
+      verdict: verdictSub, koTier: sub.oneShot ? 'sub-break' : 'sub-nobreak',
+      immune: false, kills: false, koChance: 0, expPct,
+      multiHit, hits: multiHit ? r.damage.length : 1, rolls: d.length,
+      subBlocked: true, sub };
+  }
+
   // ★ 画皮 / 结冻头：这一击实际伤害为 0，只掉 1/8 血。必须覆盖上面的计算器结果，
   //   否则下游会拿到「125-148% 可一击必杀」这种假事实。
   const effects = firstHitEffects(defenderSet, m.category, remain, m.name);
@@ -196,33 +267,41 @@ function moveFeature(attacker, attackerSet, defender, defenderSet, mvName, hpPer
       bp: m.basePower, accuracy: m.accuracy, priority: m.priority || 0,
       rawPctLo: pctLo, rawPctHi: pctHi, pctLo: 0, pctHi: 0, turnsToKO: Infinity,
       verdict: '被【' + block.zh + '】挡下：这一击伤害为 0，只掉 1/8（约 ' + Math.round(hp / 8) + ' 血），打不死它',
+      koTier: 'blocked',
       immune: false, blockedBy: block.zh, kills: false, koChance: 0, expPct: 0, rolls: d.length };
   }
 
-  let verdict;
-  if (hi === 0) verdict = '无效（免疫）';
-  else if (multiHit && pctLo >= remain) verdict = '可一击必杀（最坏命中数也够）';
-  else if (multiHit && pctHi >= remain) verdict = '打掉约 ' + pctLo.toFixed(0) + '-' + pctHi.toFixed(0) +
-    '% —— 多段招，能不能杀取决于命中几下，不是准数';
-  else if (pctLo >= remain) verdict = '可一击必杀';
-  else if (pctHi >= remain) verdict = '大概率一击必杀';
-  else verdict = '需 ' + turnsToKO + ' 回合';
+  // ★ verdict 是【给人看的整句】，koTier 是【给代码拼句子用的短档位】，两个必须分开。
+  //   把 verdict 拼进别的句子会得到「只能打掉替身 → 只能打掉替身」这种垃圾，
+  //   而且下游那些 verdict === '可一击必杀' 的判断会【静默失效】——
+  //   2026-09-27 加替身时真踩过一次：强化选项的收益行变成了两句替身警告拼在一起。
+  let verdict, koTier;
+  if (hi === 0) { verdict = '无效（免疫）'; koTier = 'immune'; }
+  else if (multiHit && pctLo >= remain) { verdict = '可一击必杀（最坏命中数也够）'; koTier = '1HKO'; }
+  else if (multiHit && pctHi >= remain) { koTier = 'multihit';
+    verdict = '打掉约 ' + pctLo.toFixed(0) + '-' + pctHi.toFixed(0) +
+    '% —— 多段招，能不能杀取决于命中几下，不是准数'; }
+  else if (pctLo >= remain) { verdict = '可一击必杀'; koTier = '1HKO'; }
+  else if (pctHi >= remain) { verdict = '大概率一击必杀'; koTier = 'likely'; }
+  else { verdict = '需 ' + turnsToKO + ' 回合'; koTier = turnsToKO + '回合'; }
 
   // ★ 结实 / 气势披带：满血时【任何乱数档】都会被截成「留 1 血」。
   //   不覆盖 verdict 的后果实测过：面板会对一只带披带的宝可梦报「打掉约 104-122% 血，可一击必杀」。
   let kills = pctLo >= remain, kc = koChance;
   const endure = effects.find(e => e.kind === 'endure');
   if (endure && pctHi >= remain) {
-    kills = false; kc = 0;
+    kills = false; kc = 0; koTier = 'endure';
     verdict = '但它满血时打不死 —— 【' + endure.zh + '】会留它 1 血（先削掉一点血，这个就没了）';
   }
   return { id: 'move:' + m.id, name: m.name, moveName: m.name, tera: tera || undefined,
     kind: 'move', type: m.type, category: m.category,
     bp: m.basePower, accuracy: acc, priority: m.priority || 0,
-    pctLo, pctHi, turnsToKO, verdict, immune: hi === 0, kills,
+    pctLo, pctHi, turnsToKO, verdict, koTier, immune: hi === 0, kills,
     enduredBy: endure ? endure.zh : undefined,
     multiHit, hits: multiHit ? r.damage.length : 1,
-    koChance: kc, expPct, rolls: d.length };
+    koChance: kc, expPct, rolls: d.length,
+    // ★ 目标有替身但被【穿过去】时，这里也要带上，否则下游只看到「伤害正常」而不知道有替身
+    ...(sub ? { sub } : {}) };
 }
 
 // ★ 换人选项必须同时给出【吃多少】和【能打多少】。
@@ -284,7 +363,8 @@ function switchFeature(mySet, oppSets, oppRevealedMoves, species, oppActiveSp, o
   return { id: 'switch:' + Dex.species.get(species).id, name: species, kind: 'switch',
     worst, priorityWorst, myOutput, vsAnswer, hpPercent: hpPercent == null ? 100 : hpPercent,
     myOutputPct: myOutput ? myOutput.expPct : null,
-    myKoChance: myOutput ? myOutput.koChance : null };
+    myKoChance: myOutput ? myOutput.koChance : null,
+    set: mySet };   // ★ 换人文案要判「它是不是撒钉手」，所以把 set 一起带出去
 }
 
 // ---------- 1.55) 先后手：本项目一直【没有认真算过】 ----------
@@ -509,6 +589,19 @@ function worstIncoming(mySp, mySet, threats, oppSets) {
       if (!worst || pct > worst.pct) worst = { pct, move: om.name, from: t.from };
     } catch (e) {}
   }
+  // ★★ 我方有替身时，对手这一发【打不到我们本体】。★★
+  //   不标出来的后果和「对手有替身」是一对镜像：面板会喊「本回合无论如何你都会吃一次攻击：62%」，
+  //   可实际上那一发先打在替身上、你本体这一回合一点血都不掉 —— 「强化/换人值不值」整个算反。
+  //   基准：替身最多还能吸收 floor(最大血/4)；日志【不公开】替身剩余血量，所以只能说「上限」。
+  if (worst && mySet && mySet.sub) {
+    const om = Dex.moves.get(worst.move);
+    const bypass = !!(om.flags && om.flags.bypasssub) || (mySet.ability === 'Infiltrator');
+    const selfOrField = ['self', 'allySide', 'allyTeam', 'foeSide', 'all', 'field'].includes(om.target);
+    if (!bypass && !selfOrField && om.category !== 'Status') {
+      worst.subbedByUs = true;
+      worst.subbedPctMax = 25;
+    }
+  }
   return worst;
 }
 
@@ -604,8 +697,14 @@ function oppSwitchRisk(state, mySet, oppSet, threats, moveList) {
   //   修法是【把基准写出来】：一发打掉最大血量的 X%，它现在只剩 Y% 血。
   const oppHpNow = (state.opp && state.opp.active && state.opp.active.hpPercent != null)
     ? state.opp.active.hpPercent : null;
-  const dmgNote = ourBest.moveName + ' 一发打掉它最大血量的 ' + (ourBest.expPct || 0).toFixed(0) + '%' +
-    (oppHpNow != null ? '，它现在只剩 ' + Math.round(oppHpNow) + '% 血' : '');
+  // ⚠️ ourBest 可能是 null（我方这只在队伍数据里找不到 → set 成 {}，或所有招都算不出来）。
+  //   这里原来无条件取 ourBest.moveName —— 一旦为 null 就【整个决策抛异常】，
+  //   面板直接没有建议。本项目的红线是「失败必须可见」，但可见 ≠ 崩掉：
+  //   找不到就写清楚，别让这一回合没有输出。
+  const dmgNote = ourBest
+    ? ourBest.moveName + ' 一发打掉它最大血量的 ' + (ourBest.expPct || 0).toFixed(0) + '%' +
+      (oppHpNow != null ? '，它现在只剩 ' + Math.round(oppHpNow) + '% 血' : '')
+    : '（算不出你这一手能打多少 —— 我方这只在队伍数据里没找到，或所有招都算不出来）';
   if (turns <= 2) switchReasons.push('你 ' + turns + ' 回合就能打死它（' + dmgNote + '）');
   else if (turns === 3) switchReasons.push('你 3 回合能打死它（' + dmgNote + '）');
   else stayReasons.push('你打它很慢（' + (ourBest ? ourBest.verdict : '未知') + '），它没有被打死的压力');
@@ -700,6 +799,7 @@ function setupFeature(meSp, mySet, oppSp, oppSet, mvName, oppHp, threats, oppSet
     if (!biggest || gain > biggest.gain) {
       biggest = { move: b1.moveName, before: b0.expPct || 0, after: b1.expPct || 0, gain,
         verdictBefore: b0.verdict, verdictAfter: b1.verdict,
+      tierBefore: b0.koTier, tierAfter: b1.koTier,
         turnsBefore: b0.turnsToKO, turnsAfter: b1.turnsToKO };
     }
   }
@@ -736,13 +836,15 @@ function setupFeature(meSp, mySet, oppSp, oppSet, mvName, oppHp, threats, oppSet
     move: m.name, zh: zh.zh, desc: oneLine(zh.shortDesc || zh.desc || ''),
     boosts: m.boosts,
     boostText: keys.map(k => (BOOST_ZH[k] || k) + ' ' + (m.boosts[k] > 0 ? '+' : '') + m.boosts[k]).join('、'),
-    now: now ? { move: now.moveName, pct: now.expPct || 0, verdict: now.verdict, turns: now.turnsToKO } : null,
-    after: after ? { move: after.moveName, pct: after.expPct || 0, verdict: after.verdict, turns: after.turnsToKO } : null,
+    now: now ? { move: now.moveName, pct: now.expPct || 0, verdict: now.verdict, tier: now.koTier, turns: now.turnsToKO } : null,
+    after: after ? { move: after.moveName, pct: after.expPct || 0, verdict: after.verdict, tier: after.koTier, turns: after.turnsToKO } : null,
     biggestGain: (biggest && biggest.gain >= 8) ? biggest : null,
     sameAfter: (sameAfter && sameAfter.kind === 'move')
-      ? { move: sameAfter.moveName, pct: sameAfter.expPct || 0, verdict: sameAfter.verdict, turns: sameAfter.turnsToKO }
+      ? { move: sameAfter.moveName, pct: sameAfter.expPct || 0, verdict: sameAfter.verdict,
+          tier: sameAfter.koTier, turns: sameAfter.turnsToKO }
       : null,
     gain: (now && after) ? (after.expPct || 0) - (now.expPct || 0) : null,
+    oppSub: !!(oppSet && oppSet.sub),   // ★ 对手有替身时，强化的收益这一回合根本兑现不了
     oppHp,   // ★ 对手【当前】血量。几确是按它算的，而 pct 是按最大血量算的 —— 并排写必须标清基准
     myHp,    // ★ 我方当前血量：用来判断「对手这一发打你会不会直接打倒你」
     speNow: speOf(mySet), speAfter: speOf(boosted), oppSpe,
@@ -768,6 +870,8 @@ function setupFeature(meSp, mySet, oppSp, oppSet, mvName, oppHp, threats, oppSet
 // ⚠️ 相性表别凭记忆写：@pkmn/dex 的 damageTaken 是【从防守方视角】记的 ——
 //   0=中性 1=弱点(2x) 2=抵抗(0.5x) 3=免疫 4=双重抵抗(0.25x)。
 //   已对拍：雄伟牙 0.25 / 钢铠鸦 1 / 喷火龙 4 / 快龙 2 / 古鼎鹿 0.5 / 铁辙迹 0.25。
+// 钉子招 id → 英文名。**放在模块作用域**：buildQuestion 和 buildTeamPreviewQuestion 都要用
+const HAZARD_OF = { stealthrock: 'Stealth Rock', spikes: 'Spikes', toxicspikes: 'Toxic Spikes', stickyweb: 'Sticky Web' };
 const ROCK_MULT = { 0: 1, 1: 2, 2: 0.5, 3: 0, 4: 0.25 };
 function rockMult(spName) {
   const s = Dex.species.get(spName);
@@ -809,9 +913,16 @@ function setupText(s, risk) {
   const parts = ['【强化】' + s.zh + '（' + s.desc + '）。用完你自己变成：' + s.boostText];
   // ★ 用【同一招】的强化前后做判断；强化后最强的一手换没换招单独说。
   const n = s.now, a = s.sameAfter || s.after;
+  // ★★ 对手有替身 ⇒ 强化的收益【这一回合兑现不了】。★★
+  //   不说这句，模型只看得到「+30 个百分点 / 净省 1 回合」，却看不到「你打出去的那一发
+  //   还是只能打掉替身、本体一点血不掉」—— 实测就是这一条让面板在替身档前推荐了剑舞。
+  if (s.oppSub) {
+    parts.push('⚠️ 但它现在有【替身】：强化完之后你这一发仍然【只会打掉替身】，本体一点血不掉 —— ' +
+      '这个 +能力要等替身破了才开始兑现；如果现在这一手本来就够打掉替身，先出招破替身更实在');
+  }
   if (n && a) {
     const d = a.pct - n.pct;
-    if (n.verdict === '可一击必杀') {
+    if (n.tier === '1HKO') {
       // 实测踩过：对手残血时两边都是「可一击必杀」，还写「+35 个百分点、这是实打实的提升」——
       // 那句话会让模型去强化一个已经能秒的对手。必须显式说破。
       // ★ 这里的 pct 是「打掉它最大血量的百分之几」，verdict 却是按【当前血量】判的。
@@ -820,7 +931,7 @@ function setupText(s, risk) {
       parts.push('⚠️ 对手现在就已经被你这一手 ' + n.move + ' 打死了（它只剩 ' +
         Math.round(s.oppHp) + '% 血，这一手打它最大血量的 ' + n.pct.toFixed(0) +
         '%）—— 强化这一回合【没有必要】，先把对面打死');
-    } else if (n.verdict === '大概率一击必杀') {
+    } else if (n.tier === 'likely') {
       parts.push('⚠️ 你现在打它就已经是【大概率一击必杀】—— 除非你有把握它这回合死不了，否则先出手');
     } else {
       // ★ 判据是「有没有跨过击杀档」而不是「涨了几个百分点」——
@@ -832,10 +943,10 @@ function setupText(s, risk) {
       const bg = s.biggestGain;
       const base = (bg && bg.gain > d)
         ? { move: bg.move, before: bg.before, after: bg.after,
-            vB: bg.verdictBefore, vA: bg.verdictAfter, tB: bg.turnsBefore, tA: bg.turnsAfter, other: bg.move !== n.move }
-        : { move: n.move, before: n.pct, after: a.pct, vB: n.verdict, vA: a.verdict, tB: n.turns, tA: a.turns, other: false };
+            vB: bg.tierBefore, vA: bg.tierAfter, tB: bg.turnsBefore, tA: bg.turnsAfter, other: bg.move !== n.move }
+        : { move: n.move, before: n.pct, after: a.pct, vB: n.tier, vA: a.tier, tB: n.turns, tA: a.turns, other: false };
       const db = base.after - base.before;
-      const breakthrough = base.vA === '可一击必杀' && base.vB !== '可一击必杀';
+      const breakthrough = base.vA === '1HKO' && base.vB !== '1HKO';
       // ★★ 回合账必须【把强化自己那一回合算进去】。★★
       //   原来只写「需 3 回合 → 需 2 回合」，读起来像省了 1 回合 ——
       //   可你为它花掉的那一回合没人扣。实测（ou-c 厄鬼椪剑舞 vs 满血盐石巨灵）真实账是：
@@ -849,7 +960,7 @@ function setupText(s, risk) {
       parts.push('收益：' +
         (base.other ? '（你目前最强的一手 ' + n.move + ' 不受这个强化影响，真正受益的是）' : '') +
         base.move + ' ' + base.before.toFixed(0) + '% → ' + base.after.toFixed(0) + '%（' +
-        (db > 0 ? '+' : '') + db.toFixed(0) + ' 个百分点；' + base.vB + ' → ' + base.vA + '）');
+        (db > 0 ? '+' : '') + db.toFixed(0) + ' 个百分点；' + tierZh(base.vB) + ' → ' + tierZh(base.vA) + '）');
       if (canT) {
         parts.push('回合账：不强化 → 出 ' + base.tB + ' 次招打死它；强化 → 1 回合强化 + ' + base.tA +
           ' 回合打死 = 一共 ' + totalYes + ' 回合。' +
@@ -875,7 +986,7 @@ function setupText(s, risk) {
             '对手后面 ' + s.carry.length + ' 只的死法都会变快（按满血、使用率配置估）—— ' + cl);
         }
       } else {
-        parts.push('回合账：这一手改的是数值不是回合数（' + base.vB + ' → ' + base.vA + '）');
+        parts.push('回合账：这一手改的是数值不是回合数（' + tierZh(base.vB) + ' → ' + tierZh(base.vA) + '）');
       }
       // 强化后最强的一手换没换招，必须单独说 —— 否则读者会把两招的数字当成同一招的前后
       if (s.after && s.after.move !== n.move) {
@@ -1062,7 +1173,7 @@ export function buildQuestion(state) {
   // ★ 我方布置的场地招 → 对应场地名。已在对方场上的要标出来：
   //   事实层解析出了 hazards，但此前 buildQuestion 【完全没有引用它】，
   //   结果模型每回合都推荐重复铺钉（实测：隐形岩第 1 回合就铺好了，之后每回合还在推）。
-  const HAZARD_OF = { stealthrock: 'Stealth Rock', spikes: 'Spikes', toxicspikes: 'Toxic Spikes', stickyweb: 'Sticky Web' };
+  // （HAZARD_OF 已经提到模块作用域 —— buildTeamPreviewQuestion 也要用它）
   const theirHazards = (state._hazards && state._hazards.theirs) || [];
 
   // 锁招提示：Jev 和玩家都要看得见「为什么只剩这几招」
@@ -1099,13 +1210,27 @@ export function buildQuestion(state) {
     : '⚠️【威胁未知】对手场上的 ' + opp.active.species + ' 我们一条招式都不知道（不在使用率表里、' +
       '也还没出过手）—— 下面所有「你会吃多少」都【算不出来，不代表它没威胁】。' +
       '判它会不会换人时请把这一点算进去。';
+  // 这套 set 里有没有钉子招？有就把 hazardFeature 的事实整段带出来（换人场景复用同一份数字）。
+  const hazardSetterOf = (set) => {
+    if (!set || !set.moves) return null;
+    const mv = set.moves.find(x => HAZARD_OF[Dex.moves.get(x).id]);
+    if (!mv) return null;
+    try { const tip = hazardFeature(state, mv); return tip ? { move: mv, tip } : null; }
+    catch (e) { return null; }
+  };
+
   const costClause = incoming
-    ? '；注意本回合无论如何你都会吃一次攻击：它最痛的 ' + incoming.move +
-      ' 打你约 ' + incoming.pct.toFixed(0) + '%' +
-      (incomingFatal
-        ? '（这一发【最坏乱数就能打倒你】—— 你现在只有 ' + me.active.hpPercent + '% 血；' +
-          '它只要打出来，你这一手就是拿自己换它这点血）'
-        : '')
+    // ★ 我方有替身时「你会吃 X%」是假话 —— 那一发先打在替身上（见 worstIncoming 里的说明）
+    ? (incoming.subbedByUs
+        ? '；注意本回合它最痛的 ' + incoming.move + '（打你约 ' + incoming.pct.toFixed(0) +
+          '%）会先打在你的【替身】上 —— 你本体这一回合不掉血，但替身最多还能吸收 ' +
+          incoming.subbedPctMax + '% 最大血（日志不公开替身剩余血量，这是上限）'
+        : '；注意本回合无论如何你都会吃一次攻击：它最痛的 ' + incoming.move +
+          ' 打你约 ' + incoming.pct.toFixed(0) + '%' +
+          (incomingFatal
+            ? '（这一发【最坏乱数就能打倒你】—— 你现在只有 ' + me.active.hpPercent + '% 血；' +
+              '它只要打出来，你这一手就是拿自己换它这点血）'
+            : ''))
     : '';
 
   const criteria = {};
@@ -1151,8 +1276,17 @@ export function buildQuestion(state) {
         speedClause + costClause + hzNote;
     } else if (a.kind === 'switch') {
       const pw = a.priorityWorst;
+      // ★ 必须把「对手根本没有先制招」和「有但我们算不出」分开说。
+      //   原来两种情况都写成「对手先制招对它的伤害未知」—— 而前者是【已知的没有】，
+      //   说成「未知」等于凭空制造不确定性（本项目红线：数字/结论离开口径就是假事实）。
+      const anyPri = Object.values(opp.revealedMoves || {})
+        .some(list => (list || []).some(mv => { const m = Dex.moves.get(mv); return m.exists && (m.priority || 0) > 0; }));
       const priNote = lethal.length
-        ? (pw ? '；换上来同样躲不掉先制——会先吃 ' + pw.from + ' 的 ' + pw.mv + '（先制+' + pw.priority + '，约 ' + pw.pct.toFixed(0) + '%）' : '；对手先制招对它的伤害未知')
+        ? (pw
+            ? '；换上来同样躲不掉先制——会先吃 ' + pw.from + ' 的 ' + pw.mv + '（先制+' + pw.priority + '，约 ' + pw.pct.toFixed(0) + '%）'
+            : (anyPri
+                ? '；对手有先制招，但算不出它对换上这只的伤害（换上这只可能刚好不怕）'
+                : '；对手已知的招式里【没有】先制招（不排除它还有没见过的招），所以换人能躲开这一回合'))
         : '';
       const canDo = a.myOutput
         ? '；换上来后它最强的一手能打 ' + (a.myOutputPct || 0).toFixed(0) + '%（' + a.myOutput.name + '）' +
@@ -1184,7 +1318,26 @@ export function buildQuestion(state) {
       //   不说这句，模型会以为「换人 = 白挨 89%」而攻击 = 没事 —— 可两条路都会掉这一只。
       const swapSym = incomingFatal
         ? '（注意：你留在场上这一回合同样会被打死，所以这个代价并不是换人额外多付的）' : '';
-      criteria[a.id] = '换上 ' + a.name + '（' + (a.worst ? '若它不换、直接攻击：你预测要吃约 ' + a.worst.pct.toFixed(0) + '%（' + a.worst.from + ' 的 ' + a.worst.mv + '）' : '暂无已知威胁') + swapVerdict + swapSym + waste + priNote + canDo + riskNote;
+      // ★★ 换上来的这只是不是【撒钉手】—— 这件事换人文案里以前一个字都没有。★★
+      //   实测（2026-09-27 battle-20260927-115708）：我方 Glimmora 是队里唯一的撒钉手
+      //   （招式里有 Earth Power 这样的输出，换人文案写着「吃 180%，绝对别选它」「能打 166%」），
+      //   撒钉这一整类价值完全缺席 ⇒ 它永远是最差的选项，整局一次都没上过场。
+      //   这和强化招、钉子招当年是同一个坑：**没有标签的选项 = 不存在的选项**。
+      // ★★ 换出去又换回来 = 白送对手两个回合。★★
+      //   换人是对称的，所以只要「刚换下去的那只又能换回来」，模型就会来回换 ——
+      //   实测两次陷入循环（alomomola↔greattusk 一直换到 140 回合；
+      //   2026-09-27 battle-20260927-123200 的 landorus↔irontreads 连换 4 回合）。
+      //   根因是【永远不告诉模型"你上一手刚把它换下去"】—— 它看到的永远是「换上它能少挨 10%」。
+      const justOut = (state._myHistory || []).slice(0, 3);
+      const backIdx = justOut.indexOf(a.name);
+      const backNote = backIdx >= 0
+        ? '。⚠️ 【你最近刚把它换下去过' + (backIdx === 0 ? '（就在上一回合）' : '（' + (backIdx + 1) + ' 回合前）') +
+          '】—— 再换回来等于把刚才那一回合白送对手，来回换是对称的、谁也占不到便宜。' +
+          '除非局面确实变了（它换人/你换了道具/血量关键档位变了），否则别往回换'
+        : '';
+      const hzSet = hazardSetterOf(a.set);
+      const hzSetNote = hzSet ? '。★ 换上它就能【撒钉子】：' + hzSet.tip.replace(/^【钉子】/, '') : '';
+      criteria[a.id] = '换上 ' + a.name + '（' + (a.worst ? '若它不换、直接攻击：你预测要吃约 ' + a.worst.pct.toFixed(0) + '%（' + a.worst.from + ' 的 ' + a.worst.mv + '）' : '暂无已知威胁') + swapVerdict + swapSym + waste + priNote + canDo + hzSetNote + backNote + riskNote;
     } else {
       // ★ 普通状态招：至少把【中文效果描述】写进去。
       //   原来这里只有「名称（状态招，不造成伤害）」—— 模型据此没有任何可判断的信息，
@@ -1385,6 +1538,22 @@ export function buildTeamPreviewQuestion(state) {
   const oppTeam = state.opp.team || [];
   if (!myTeam.length || !oppTeam.length) return null;
 
+  // ★★ 先发选项必须贴出「它能不能撒钉 / 除钉」这个标签。★★
+  //   下面的总则②早就写了「先发能设置场地（隐形岩/撒菱）或能清除场地（高速旋转）通常加分」——
+  //   可**每个选项里一个字都没有**，模型只能靠猜谁有这个招。规则写在总则里、事实不在选项上，
+  //   结果就是选不出来（「没有标签的选项 = 不存在的选项」，本项目第 5 次，2026-09-27）。
+  //   钉子收益逐只可算：隐形岩 = 最大血 / 8 × 岩石相性（对手 6 只是公开信息）。
+  const hzShim = { opp: { revealed: oppTeam.map(x => x.species) } };
+  const REMOVER_OF = { rapidspin: '高速旋转', defog: '清除浓雾', mortalspin: '晶光转转',
+    tidyup: '大扫除', courtchange: '换场' };
+  const roleOf = (set) => {
+    const mvs = (set.moves || []).map(m => Dex.moves.get(m)).filter(m => m.exists);
+    return {
+      setter: mvs.find(m => HAZARD_OF[m.id]) || null,
+      remover: mvs.find(m => REMOVER_OF[m.id]) || null,
+    };
+  };
+
   const actions = [];
   for (const me of myTeam) {
     const mySet = me.set || {};
@@ -1401,10 +1570,13 @@ export function buildTeamPreviewQuestion(state) {
       if (out && (!bestOut || (out.expPct || 0) > (bestOut.expPct || 0))) bestOut = { pct: out.expPct, name: out.name, vs: op.species };
       if (inn && (!worstIn || (inn.expPct || 0) > (worstIn.expPct || 0))) worstIn = { pct: inn.expPct, name: inn.name, from: op.species };
     }
+    const role = roleOf(mySet);
     actions.push({
       id: 'lead:' + Dex.species.get(me.species).id,
       name: me.species, kind: 'lead',
       item: mySet.item, ability: mySet.ability,
+      hazardSetter: role.setter ? role.setter.name : null,
+      hazardRemover: role.remover ? role.remover.name : null,
       bestOut, worstIn,
       fasterCount: rows.filter(r => r.faster).length,
       total: rows.length,
@@ -1421,6 +1593,16 @@ export function buildTeamPreviewQuestion(state) {
         ((a.worstIn.pct || 0) >= 100 ? '，可秒杀' : '') + '）');
     }
     parts.push('速度 ' + Math.max(...a.rows.map(r => r.mySpe)) + '，快过 ' + a.fasterCount + '/' + a.total);
+    // ★ 撒钉 / 除钉：整段事实（每只吃多少、收益高不高）直接复用 hazardFeature 的同一份数字
+    if (a.hazardSetter) {
+      let tip = '';
+      try { tip = hazardFeature(hzShim, a.hazardSetter).replace(/^【钉子】/, ''); } catch (e) { tip = ''; }
+      parts.push('★ 它能【撒钉子】：' + (tip || a.hazardSetter + '（算不出对方 6 只的吃到量）'));
+    }
+    if (a.hazardRemover) {
+      parts.push('★ 它能【除钉】：' + a.hazardRemover + '（对手铺的钉子会被清掉）');
+    }
+    if (!a.hazardSetter && !a.hazardRemover) parts.push('它【不会撒钉、也不会除钉】');
     criteria[a.id] = '先发 ' + a.name + '（' + (a.item || '无道具') + '·' + (a.ability || '?') + '）：' + parts.join('；');
   }
 
@@ -1431,7 +1613,8 @@ export function buildTeamPreviewQuestion(state) {
         '选择这局的【先发】（第一只上场）。这是整局的起点，权重极高。' +
         '对手 6 只的【物种】已公开，但它们的招式/道具/努力值只有【最常见配置】——属于推测，不是事实。' +
         '规则：①绝不要先发会被对手多只宝可梦一击必杀的；' +
-        '②先发能设置场地（隐形岩/撒菱）或能清除场地（高速旋转）通常加分；' +
+        '②先发能设置场地（隐形岩/撒菱）或能清除场地（高速旋转）通常加分 —— ' +
+        '每个选项末尾都标了【它能撒钉子】/【它能除钉】/【都不会】以及具体的吃到量，照那个看；' +
         '③注意免疫关系与先制招（先制无视速度）；' +
         '④不只看第一回合，要考虑整局展开；' +
         '⑤速度快的先发能抢先手，但被先制招克制时无效。只回答一个选项 id。',

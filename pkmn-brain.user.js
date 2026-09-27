@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         宝可梦外接大脑 (Jev)
 // @namespace    pkmn-brain
-// @version      1.0.0
+// @version      1.1.0
 // @description  在对战页左下角以纯文字显示 Jev 的实时决策建议
 // @match        https://play.pokemonshowdown.com/*
 // @grant        GM_xmlhttpRequest
@@ -303,6 +303,26 @@ const SHOW_OPTIONS = 4;
   //   于是「换了队也不生效」。挑字段这件事本身就是静默失败源，去掉它。
   function safeClone(v) { try { return v == null ? null : JSON.parse(JSON.stringify(v)); } catch (e) { return null; } }
 
+  // ★ 本地队伍：PS 客户端把队伍存在页面里（PS.teams.list，落盘在 localStorage['showdown_teams']），
+  //   每一项的 packedTeam 解出来带【精确】的性格/努力值/个体值 —— 这正是 request 里没有的
+  //   （引擎源码 pokemon.js:785 getSwitchRequestData 只发最终数值 stats，不发 evs/nature/ivs）。
+  //
+  //   ⚠️ 这里【只做原样转发】：不筛、不匹配、不判断、不排序。
+  //      匹配全部在服务端做（brain/team-local.mjs）—— 浏览器侧挑字段是本项目踩过的静默失败源：
+  //      挑空了服务端完全看不出来，会悄悄回退兜底队伍。连「坏掉的条目」也照样发过去，
+  //      由服务端数出来（它会报 broken=N），而不是在这里被悄悄丢掉。
+  function collectLocalTeams() {
+    try {
+      const t = (W.PS && W.PS.teams) || (W.app && W.app.teams) || null;
+      const list = t && Array.isArray(t.list) ? t.list : null;
+      if (!list) return null;
+      return list.map(x => ({
+        name: String((x && x.name) || ''),
+        packedTeam: (x && typeof x.packedTeam === 'string') ? x.packedTeam : '',
+      }));
+    } catch (e) { console.log('[外接大脑] 读 PS.teams 失败:', String(e).slice(0, 120)); return null; }
+  }
+
   function ask(logLines, name, oppTeam, request) {
     if (inflight) return;
     inflight = true;
@@ -313,6 +333,7 @@ const SHOW_OPTIONS = 4;
         log: logLines.join('\n'), me: name, team: TEAM_FILE,
         oppTeam: oppTeam || null,
         request: safeClone(request),
+        localTeams: collectLocalTeams(),
       });
     } catch (e) {
       body = JSON.stringify({ log: logLines.join('\n'), me: name, team: TEAM_FILE });
@@ -361,7 +382,8 @@ const SHOW_OPTIONS = 4;
         ' side.pokemon=' + (mons ? mons.length : '无') +
         ' 首只招式=' + (mons && mons[0] && mons[0].moves ? mons[0].moves.length : '?') +
         ' 太晶=' + (act ? (act.canTerastallize || '不可') : '-') +
-        ' PS.teams=' + (hasPS ? n + '队/packed' + packedN : '无');
+        ' PS.teams=' + (hasPS ? n + '队/packed' + packedN : '无') +
+        (hasPS ? ' 转发=' + (collectLocalTeams() || []).length : '');
     } catch (e) { teamDiag = '读取异常: ' + String(e).slice(0, 80); }
   }
 
@@ -428,5 +450,6 @@ const SHOW_OPTIONS = 4;
     ask(log, myName(), opp, req);
   }, POLL_MS);
 
-  console.log('[外接大脑] ===== 已注入 v1.0.0 =====');
+  console.log('[外接大脑] ===== 已注入 ' +
+    ((typeof GM_info !== 'undefined' && GM_info.script && GM_info.script.version) || '?') + ' =====');
 })();
