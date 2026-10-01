@@ -20,7 +20,7 @@
 | `team <队伍文件> --format <格式>` | 队伍合法性校验（**双校验器**，见下） |
 | `sim --p1 a.txt --p2 b.txt --n 200` | 蒙特卡洛胜率（`--format` 决定单/双打） |
 | `speed` 修正 | 配置里的讲究围巾/天气特性**自动算**；另有 `--scarf/--tailwind/--para/--weather/--booster/--boost-pN` |
-| `node tools/_verify-core.mjs` | 核心库自检（多段招二维数组 + 速度修正，23 项断言） |
+| `node tools/_verify-core.mjs` | 核心库自检（多段招二维数组 + 速度修正 + 古代活性倍率，32 项断言） |
 | `formats [关键词]` | 列出可用对战格式（两个引擎合并，标注来源） |
 
 底层库在 `tools/lib.mjs`（`parseImportable` / `loadTeam` / `runBattle` / `zhToEn` / `enToZh` / `tpath`）。
@@ -109,7 +109,14 @@ Leftovers 官方「吃剩的东西」但大家都说「剩饭」；Jolly 官方�
 **⚠️ `@smogon/calc` 建了什么、没建什么 —— 必须先写对拍测出来，再决定要不要自己补**
 - ✅ **已建模**：多重鳞片 Multiscale、幻影防守 Shadow Shield（实测快龙吃暗影球 199-235 → 99-117，正好一半）
 - ❌ **没建模**：画皮 Disguise、结冻头 Ice Face、结实 Sturdy、气势披带 Focus Sash、
-  **古代活性 / 夸克充能（含驱动能量）**
+  **替身 Substitute**、**古代活性 / 夸克充能（含驱动能量）**
+- **替身**：实测 calc 里只有一条招式记录（`{bp: 0, category: 'Status'}`），**伤害路径上没有任何替身机制**
+  ⇒ 它会把「打在替身上」照样算成「打在本体上」。规则（引擎 `data/moves.js` 的
+  `substitute.onTryPrimaryHit`）：替身血量 = `floor(最大血 / 4)`；
+  **伤害超过替身剩余时截到替身剩余 —— 多出来的不结转到本体**；
+  三种情况不吃替身：自身指向 / `move.flags.bypasssub`（音波招式）/ `move.infiltrates`（穿透特性）；
+  多段招打掉替身后的**后续几下**才打到本体。
+  ⚠️ 日志**不公开替身剩余血量**，所以只能说「最多还能吸收 25% 最大血」这个上限。
 - **古代活性 / 夸克充能**：实测四种写法（不给 / `ability:'Protosynthesis'` / `item:'Booster Energy'` /
   两者都给）伤害**一模一样**；构造后改 `stats.atk`、`rawStats.atk` 也全被忽略。
   倍率取自引擎源码 `data/abilities.js` 的 `onModifyAtk/Def/SpA/SpD → chainModify([5325, 4096])` = **×1.30005**
@@ -124,7 +131,7 @@ Leftovers 官方「吃剩的东西」但大家都说「剩饭」；Jolly 官方�
   自检：`node tools/_verify-core.mjs` 的 ③（9 项断言）。
 - 我一度凭印象说「Multiscale 我们一个都没建模」——**是错的**，差点双重减半。
   **凡「calc 支不支持 X」，一律先写个对拍测出来。**
-- 没建模的四项要自己补，规则（已对过引擎源码）：
+- 上面这些没建模的，规则（已对过引擎源码，需要时自己补）：
   **结实 / 气势披带** = 满血时被打倒就把该次伤害截成「留 1 血」（多段招不适用：第一段留 1 血、第二段照样打死）；
   **画皮 / 结冻头** = 该次伤害归 0（画皮再自扣 1/8 最大 HP）。
   引擎源码：`pokemon-showdown/dist/data/abilities.js` 搜 `sturdy` / `disguise`，`data/items.js` 搜 `focussash`。
@@ -154,7 +161,7 @@ Leftovers 官方「吃剩的东西」但大家都说「剩饭」；Jolly 官方�
   再叠加 `opts`（`weather` / `tailwind` / `para` / `boost` / `booster`）。
 - 踩过的坑：队文件里明明写着 `@ Choice Scarf`，`speed` 却按 309 报，
   还回了句「Iron Valiant 更快」—— **围巾土地云其实是 463，它更快**。数字就在手里却没用。
-- 自检：`node tools/_verify-core.mjs`（多段招对拍 desc + 速度修正，23 项断言，不联网）。
+- 自检：`node tools/_verify-core.mjs`（多段招对拍 desc + 速度修正 + 古代活性倍率，32 项断言，不联网）。
 
 **⚠️ 慢的不是文字，是往返**（与 toolkit 无直接关系，但影响所有「帮我看一眼」的请求）
 - 实测每回合固定消耗 15–20 秒往返。**做对战辅助时，一次给决策树，不要一回合给一手。**
