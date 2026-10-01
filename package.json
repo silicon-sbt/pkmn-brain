@@ -9,7 +9,7 @@
     "start": "node start.mjs",
     "log": "node logview.mjs",
     "sync-toolkit": "node sync-toolkit.mjs",
-    "verify": "node _verify-config.mjs && node _verify-speed.mjs && node _verify-hazard.mjs && node _verify-oppboost.mjs && node _verify-deadmove.mjs && node _verify-paradox.mjs && node _verify-setup.mjs && node _verify-sub.mjs && node _verify-disguise.mjs && node _verify-loop.mjs && node _verify-team-local.mjs && node _verify-team-e2e.mjs && node verify_firsthit.mjs",
+    "verify": "node _verify-config.mjs && node _verify-speed.mjs && node _verify-hazard.mjs && node _verify-oppboost.mjs && node _verify-deadmove.mjs && node _verify-paradox.mjs && node _verify-setup.mjs && node _verify-sub.mjs && node _verify-disguise.mjs && node _verify-typechange.mjs && node _verify-loop.mjs && node _verify-team-local.mjs && node _verify-team-e2e.mjs && node verify_firsthit.mjs",
     "regress": "node regress.mjs"
   },
   "dependencies": {

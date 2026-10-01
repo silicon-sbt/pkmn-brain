@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         宝可梦外接大脑 (Jev)
 // @namespace    pkmn-brain
-// @version      1.1.0
+// @version      1.2.0
 // @description  在对战页左下角以纯文字显示 Jev 的实时决策建议
 // @match        https://play.pokemonshowdown.com/*
 // @grant        GM_xmlhttpRequest
@@ -121,7 +121,10 @@ const SHOW_OPTIONS = 4;
   }
 
   function diag() {
-    const lines = ['—— 诊断（v1.0.0）——'];
+    // ★ 版本号【不要写死】：这里硬编码过 'v1.0.0'，而 @version 早就到 1.1.0 了 ——
+    //   诊断行说 v1.0.0、面板状态行说 v1.1.0，用户根本没法判断到底装上没有。
+    //   现在统一读 GM_info（和第 454 行同一个来源），永远跟 @version 一致。
+    const lines = ['—— 诊断（v' + ((typeof GM_info !== 'undefined' && GM_info.script && GM_info.script.version) || '?') + '）——'];
     lines.push('  unsafeWindow 可用 = ' + (W !== window));
     lines.push('  unsafeWindow.PS  = ' + (W.PS ? typeof W.PS : 'undefined'));
     lines.push('  PS.rooms 存在    = ' + !!(W.PS && W.PS.rooms));

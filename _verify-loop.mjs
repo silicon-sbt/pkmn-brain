@@ -55,5 +55,24 @@ console.log('③ 反向对照：没有换人历史时不该出现这句话');
 }
 
 console.log('');
+console.log('④ ⚠️ 窗口不能放太宽：隔了两回合的不该再喊「白送一回合」');
+{
+  // 实测（150 个真实决策点）：窗口放到「最近 3 只」时 78% 的点都会挂上这句，
+  // 而高手选择换人的 37 次里 14 次被贴中 —— 措辞却写着「等于把刚才那一回合白送对手」，
+  // 那只在【隔一回合】时成立。28 回合的对战里 A→B→A 的正常轮转到处都是。
+  const LOG2 = LOG.concat([
+    '|switch|p1a: Hat|Hatterene|318/318',   // 再往前一次：Hatterene 也被换下去过
+    '|turn|18',
+  ]);
+  const st3 = stateFromLog(LOG2, 'p1', MINE, META);
+  const c3 = (buildQuestion(st3).questions.action.criteria) || {};
+  // 换人历史此时是 ['Iron Treads', 'Landorus-Therian']，场上 Hatterene
+  const one = String(c3['switch:landorustherian'] || '');   // 上一回合刚换下去的
+  const two = String(c3['switch:irontreads'] || '');        // 两回合前换下去的
+  check('上一回合刚换下去的那只【仍然】被警告', one.length > 0 && /你最近刚把它换下去过/.test(one), one.slice(0, 50));
+  check('隔了两回合的那只【不再】被贴这句话', two.length > 0 && !/你最近刚把它换下去过/.test(two), two.slice(0, 50));
+}
+
+console.log('');
 console.log(bad ? bad + ' 项失败' : '全部通过');
 process.exit(bad ? 1 : 0);

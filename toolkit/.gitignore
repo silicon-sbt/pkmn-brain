@@ -11,3 +11,7 @@ matchup-sheet.md
 
 # 派生数据，可由 npm run rag:build 重建
 data/rag-index.json
+
+# 公开对局记录（抓自 replay.pokemonshowdown.com，可随时用
+# tools/fetch-replays.mjs 重抓）—— 体积大、不是我们的内容，不入库
+data/replays/

@@ -44,7 +44,9 @@
 | `team-local.mjs` | 从浏览器本地存的队伍里认出「这一局在用的是哪一套」（见下「本地队伍」一节） |
 | `_verify-team-local.mjs` | 本地队伍匹配（唯一解 / 数值消歧 / 孪生队要拒绝 / 形态放宽 / L50 / **道具被消耗后仍要认得出**）（35 项断言） |
 | `_verify-disguise.mjs` | 画皮：**从真引擎日志里**解出「已经破了」（6 项断言；见下面那条前缀坑） |
-| `_verify-loop.mjs` | 换人循环：往回换要贴警告（7 项断言） |
+| `_verify-typechange.mjs` | 属性被改过（变幻自如/自由自在）要进 calc（6 项断言；**解析 + 对拍面板数字两段都验**） |
+| `_verify-loop.mjs` | 换人循环：往回换要贴警告（**只在真·上一回合**）（9 项断言） |
+| `replay-decisions.mjs` | 从公开对局记录（`toolkit/data/replays/`）里抽决策样本，可选抽 N 个真调 Jev 对拍 |
 | `_verify-team-e2e.mjs` | 同一件事的端到端：真起服务看黑窗口说了什么（故意不配密钥，**不烧 Jev 额度**） |
 | `_verify-sub.mjs` | 替身：打不打得动、穿不穿得过去、我方替身挡不挡得住、**有没有进 payload**（30 项断言） |
 | `toolkit/` | **内联的离线工具与数据**（上游是独立仓库 pkmn-toolkit） |
@@ -247,6 +249,40 @@ node brain/logview.mjs <key> --json       # 原始 JSONL
 也当成"破了"**，两条互为兜底。
 ⚠️ 不要顺手改 `out.species[slot]`：Showdown 的槽位标签换形态后**不变**
 （`|-damage|p2a: Mimikyu|…` 一直是 Mimikyu），改了会让后面的 key 全对不上。
+
+### ⚠️ 属性被改过（变幻自如 / 自由自在）—— 面板一直按【基础属性】算（2026-10-01 用户实测）
+
+用户报「假面魔猫的特性好像没有考虑诶」。查日志，引擎其实**明说了**：
+
+    |move|p2a: Meowscarada|U-turn|p1a: Ting-Lu
+    |-start|p2a: Meowscarada|typechange|Bug|[from] ability: Protean
+
+而 brain 里搜 `typechange` —— **一条都没有**，整局对它的伤害都按基础属性（草/恶）算。
+
+**实测误差有多大**（@smogon/calc 认 `overrides.types`）：
+
+| 它当前的属性 | 吃 Drain Punch(格) | 吃 Brave Bird(飞) |
+|---|---|---|
+| 基础 草/恶 | 130–154 | 308–366 |
+| 变纯**虫** | **65–77**（一半） | 308–366 |
+| 变纯**恶** | **260–308**（翻倍） | **154–183**（一半） |
+
+**能到 2–4 倍。** 顺带实测：**攻击侧的 Protean calc 是建的**（U-turn 16-19 → 24-29，正好 1.5× STAB），
+缺的只有防御侧。
+
+**修法两半**（缺一个都不生效，和画皮那次一样）：
+
+1. `log2state`：`|-start|<槽位>|typechange|<属性>` → `out.types[槽位]`，**换人时清掉**
+   （Protean 换上来可以再发动，日志里能看到第二次 typechange）。
+   ⚠️ 属性写在 `p[4]`，**`p[5]` 起是 `|[from] ability: Protean` 这种尾巴，不能一起收**
+   （第一版收了，得到 `["Bug","[from] ability: Protean"]`）。
+2. `harness` 的 `setOf()` —— 这是**唯一的注入点**：三个 `calculate()` 调用点都走 `mk() → setOf()`，
+   所以只在这一处加 `o.overrides = { types: s.types }`，`moveFeature` / `switchFeature` / `hitOnMe`
+   三处一起生效，不会出现「真事实只放在一边」。
+   ⚠️ **太晶之后不要覆盖**（属性就是太晶属性），否则变成双重真相。
+
+自检：`node brain/_verify-typechange.mjs`（6 项断言）。**两段都要验**：① 喂真日志看解析
+② 对拍面板数字有没有真的变（只有 ① 是假绿 —— 属性解析出来了、忘了喂 calc，照样交学费）。
 
 引擎源码（`pokemon-showdown/dist/data/`）：结实 `onDamagePriority:-30`、披带 `-40`、画皮/结冻头 `1`
 （数值大的先结算，所以被挡下时结实不触发）。三者条件都是

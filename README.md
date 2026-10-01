@@ -168,7 +168,7 @@ node _verify-decidelog.mjs  # 决策日志端到端（自己在 7799 起服务�
 
 为了让你**克隆一个仓库就能跑**，离线工具与数据（中文名表、队伍解析、伤害库、meta 配置、AI 技能）
 已经内联在 `toolkit/` 里 —— 它原本是独立仓库 [**pkmn-toolkit**](https://github.com/silicon-sbt/pkmn-toolkit)。
-两边都是 MIT，随你怎么用。
+两边都**以 MIT 为主**，随你怎么用（唯一的例外见文末「许可」）。
 
 内联的代价是会漂移，所以留了个同步脚本：
 
@@ -179,3 +179,16 @@ node sync-toolkit.mjs           # 刷成上游最新，然后 git commit
 
 **只想要离线工具、不想要对战辅助？** 那就直接去 **[silicon-sbt/pkmn-toolkit](https://github.com/silicon-sbt/pkmn-toolkit)** ——
 那个仓库是自包含的，克隆下来 `npm install` 就能用，不需要这个仓库。
+
+---
+
+## 许可
+
+**本仓库以 MIT 发布**（见 [`LICENSE`](LICENSE)，署名 `Copyright (c) 2026 silicon-sbt`，
+与 pkmn-toolkit 同一份原文）。内联的 `toolkit/` 同样是 MIT（上游是
+[pkmn-toolkit](https://github.com/silicon-sbt/pkmn-toolkit)）。
+
+> ⚠️ 以上是照许可要求做的机械处理，不是法律意见；要商业分发的话值得找人确认一次。
+
+Pokémon、宝可梦及相关名称为任天堂 / Creatures Inc. / GAME FREAK inc. 的商标。
+本项目为非官方粉丝工具，与上述公司及 Smogon、Pokémon Showdown 无关联。

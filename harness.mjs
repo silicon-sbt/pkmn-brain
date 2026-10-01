@@ -54,6 +54,17 @@ const setOf = (s) => {
   //   「还能太晶」是另一回事（s.teraAvailable），绝不能同时传进来，否则伤害凭空 ×1.333。
   if (s.teraType) o.teraType = s.teraType;
   if (s.boosts && Object.keys(s.boosts).length) o.boosts = s.boosts;
+  // ★★ 属性被改过（变幻自如 Protean / 自由自在 Libero / 保护色…）★★
+  //   不覆盖的话，防御面全部按【基础属性】算 —— 实测（battle-20261001-225012，
+  //   魔幻假面喵先变虫、后变恶）：
+  //     吃 Drain Punch(格)：基础 草/恶 = 130-154 ｜ 变纯恶 = 260-308（翻倍）｜ 变纯虫 = 65-77（一半）
+  //     吃 Brave Bird(飞)：基础 = 308-366 ｜ 变纯恶 = 154-183（一半）
+  //   同一次实测确认 @smogon/calc 认 overrides.types，不传就是错的。
+  //   ⚠️ 这是【唯一的注入点】—— 三个 calculate() 调用点都走 mk() → setOf()，
+  //      所以只要这里接上，moveFeature / switchFeature / hitOnMe 三处一起生效，
+  //      不会出现「真事实只放在一边」那种一边对一边错。
+  //   ⚠️ 太晶之后属性就是太晶属性，此时【不要】再用 typechange 覆盖（会盖掉太晶，变成双重真相）。
+  if (s.types && s.types.length && !s.teraType) o.overrides = { types: s.types };
   return o;
 };
 
@@ -1265,6 +1276,15 @@ export function buildQuestion(state) {
         : doom + a.name + ' (' + a.type + ' ' + a.category + ', ' + a.bp + ' 威力, 命中' + a.accuracy + ')' +
         (a.immune ? ' —— 【对当前对手无效，不要选】'
           : a.blockedBy ? ' —— 【被' + a.blockedBy + '挡下，这一击打不出伤害，不要当它是一击必杀】'
+          // ★★ 必死的招不许再挂【正面标签】★★
+          //   实测（跨 6 局、286 个 move 决策点）：面板报了「本回合必死」的 44 个点里，
+          //   Jev 仍然点出招的 23 个（52.3%）、点的【正是那个必死招】的 21 个（47.7%）。
+          //   根因是同一个选项字符串里同时写着「这一手【根本打不出去】」和「**可一击必杀**」——
+          //   正面标签压过了死刑宣判。这和 deadLock 是同一个坑（否定标签打不过具体代价），
+          //   只是当时只处理了「唯一能点的招完全无效」，更常见的「本回合必死」一直没管。
+          //   伤害数字保留（对手换人/你先手时照样兑现），但**判读必须撤掉**并明说这一回合不会发生。
+          : doomed ? ' —— 打掉约 ' + a.pctLo.toFixed(0) + '-' + a.pctHi.toFixed(0) + '% 血，' +
+              '但【这一回合兑现不了】：上面这个数只有在对手换人、或你先手打出去时才成立'
           : ' —— 打掉约 ' + a.pctLo.toFixed(0) + '-' + a.pctHi.toFixed(0) + '% 血，' + a.verdict) +
         (a.priority > 0 ? '，先制 +' + a.priority + '（无视速度）' : '') +
         (a.multiHit ? '【多段招：这是按 ' + a.hits + ' 下算出的【合计】区间；命中数本身可变（如种子机关枪 2-5 下）时这是估算】' : '') +
@@ -1328,7 +1348,13 @@ export function buildQuestion(state) {
       //   实测两次陷入循环（alomomola↔greattusk 一直换到 140 回合；
       //   2026-09-27 battle-20260927-123200 的 landorus↔irontreads 连换 4 回合）。
       //   根因是【永远不告诉模型"你上一手刚把它换下去"】—— 它看到的永远是「换上它能少挨 10%」。
-      const justOut = (state._myHistory || []).slice(0, 3);
+      //   ⚠️ 2026-10-01 收窄：窗口原来是【最近 3 只】，实测在 150 个真实决策点上
+      //   **78% 的点都挂上了这句话**，而高手实际选择换人的 37 次里有 14 次正好被它贴中。
+      //   可措辞是「再换回来等于把刚才那一回合白送对手」—— 那只在【隔一回合】时成立；
+      //   28 回合的对战里 A→B→A 的正常轮转到处都是，把"3 回合前换下过"也说成"白送一回合"
+      //   就是**把真事实夸大**（本项目红线：比较因此整体失真）。
+      //   现在只认【真的是上一回合】，真正的来回换（landorus↔irontreads 那种）照样抓得住。
+      const justOut = (state._myHistory || []).slice(0, 1);
       const backIdx = justOut.indexOf(a.name);
       const backNote = backIdx >= 0
         ? '。⚠️ 【你最近刚把它换下去过' + (backIdx === 0 ? '（就在上一回合）' : '（' + (backIdx + 1) + ' 回合前）') +

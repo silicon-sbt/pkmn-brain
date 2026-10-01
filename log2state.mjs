@@ -40,6 +40,8 @@ export function parseLog(log) {
     //   不记这一条，面板会在对手有替身时照样说「大概率一击必杀」—— 实测 2026-09-27 那局
     //   （对手天蝎王替身档在场上，面板写 Kowtow Cleave 72-84% 大概率一击必杀）。
     sub: {},
+    // ★ 被改过的属性（typechange）。空 = 用基础属性。见下面 -start 里的说明。
+    types: {},
     // ★ 每个槽位的换人历史（最近的在前）。用来识别【换出去又换回来】——
     //   换人是对称的，来回换等于白送对手两个回合（实测陷入过 140 回合的换人循环）。
     slotHistory: {},
@@ -74,6 +76,7 @@ export function parseLog(log) {
         delete out.boosts[key(side, prev)];
         delete out.paradox[key(side, prev)];   // 古代活性/夸克充能 的 volatile 也随换人消失
         delete out.sub[key(side, prev)];       // 替身也是 volatile，换下去就没了
+      delete out.types[key(side, prev)];     // 被改的属性也随换人消失（Protean 换上来可以再发动）
         out.speedFlag[key(side, prev)] = false;
       }
       out.species[slot] = name;
@@ -166,6 +169,22 @@ export function parseLog(log) {
       } else if (what === 'substitute') {
         // |-start|p1a: Gliscor|Substitute   /   |-end|p1a: Gliscor|Substitute（被打掉）
         if (kind === '-start') out.sub[K] = true; else delete out.sub[K];
+      } else if (what === 'typechange') {
+        // ★★ 属性被改过（变幻自如 Protean / 自由自在 Libero / 保护色 / 太晶前的形态变化…）★★
+        //   引擎原文：|-start|p2a: Meowscarada|typechange|Dark|[from] ability: Protean
+        //   （两个属性时是 typechange|Fire|Flying）
+        //   不记这一条，之后所有伤害都按【基础属性】算 —— 实测 @smogon/calc 认 overrides.types，
+        //   举个会错的例子：魔幻假面喵变成纯恶之后，
+        //     吃 Drain Punch：基础(草/恶)=130-154，纯恶=260-308（差 2 倍）
+        //     变成纯虫则相反：吃 Drain Punch 只有 65-77（差 4 倍）
+        //   实测那局 battle-20261001-225012 里它先变虫、再变恶（第 149 / 182 行）。
+        if (kind === '-start') {
+          // 属性写在 p[4]，多个用 / 分隔；p[5] 起是 |[from] ability: Protean 这类尾巴，
+          // 不能一起收进来（第一版就收了，得到 ["Bug","[from] ability: Protean"]）。
+          const t = String(p[4] || '').split('/').map((x) => x.trim())
+            .filter((x) => x && !x.startsWith('['));
+          if (t.length) out.types[K] = t;
+        } else delete out.types[K];
       }
       continue;
     }
@@ -205,6 +224,7 @@ export function stateFromLog(log, meSide, myTeam, META) {
     boosts: P.boosts[key(meSide, sp)] || {},
     paradox: P.paradox[key(meSide, sp)] || null,
     sub: !!P.sub[key(meSide, sp)],          // 替身（volatile）—— 有它时这一发打不到本体
+    types: P.types[key(meSide, sp)] || null,   // ★ 被改过的属性（Protean 等）；null = 用基础属性
 
     teraType: teraOf(sp),
     teraAvailable: (!teraOf(sp) && m.teraType) ? m.teraType : undefined,
@@ -232,6 +252,10 @@ export function stateFromLog(log, meSide, myTeam, META) {
       boosts: P.boosts[K] || {},
       paradox: P.paradox[K] || null,
       sub: !!P.sub[K],                       // ★ 对手有替身时，我们的伤害全打在替身上
+      // ★★ 属性被改过（变幻自如/自由自在）—— 不传的话所有防御面伤害都按基础属性算。★★
+      //   实测 @smogon/calc 认 overrides.types：魔幻假面喵变纯恶后吃格斗 130-154 → 260-308，
+      //   变纯虫则反过来只剩 65-77。详见 -start 里 typechange 那段注释。
+      types: P.types[K] || null,
       nature: meta.nature, evs: meta.evs,
       assumed: !P.abilities[K] || !P.items[K],
       // ★ 画皮/结冻头已经用掉了就必须告诉 calc 那一侧，否则 firstHitBlock 会一直拦着
