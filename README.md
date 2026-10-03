@@ -182,6 +182,15 @@ node sync-toolkit.mjs           # 刷成上游最新，然后 git commit
 
 ---
 
+## 打赏
+
+这个项目是业余做的，纯自愿 —— **不打赏也不影响任何功能**，Star 或者反馈个 bug 同样有用。
+
+<img src="assets/donate.jpg" alt="微信打赏码" width="260">
+
+（微信扫码）
+
+---
 ## 许可
 
 **本仓库以 MIT 发布**（见 [`LICENSE`](LICENSE)，署名 `Copyright (c) 2026 silicon-sbt`，

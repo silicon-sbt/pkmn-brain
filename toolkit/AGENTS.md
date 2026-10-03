@@ -19,8 +19,8 @@
 | `speed --attacker X --defender Y` | 速度线对比 |
 | `team <队伍文件> --format <格式>` | 队伍合法性校验（**双校验器**，见下） |
 | `sim --p1 a.txt --p2 b.txt --n 200` | 蒙特卡洛胜率（`--format` 决定单/双打） |
-| `speed` 修正 | 配置里的讲究围巾/天气特性**自动算**；另有 `--scarf/--tailwind/--para/--weather/--booster/--boost-pN` |
-| `node tools/_verify-core.mjs` | 核心库自检（多段招二维数组 + 速度修正 + 古代活性倍率，32 项断言） |
+| `speed` 修正 | 配置里的讲究围巾/天气特性**自动算**；另有 `--scarf/--tailwind/--para/--weather/--booster/--boost-pN`；`--trick-room` 反转先后（**先制招仍优先**），降速招用 `--boost-pN -1` |
+| `node tools/_verify-core.mjs` | 核心库自检（多段招二维数组 + 速度修正 + 古代活性倍率 + 戏法空间，38 项断言） |
 | `formats [关键词]` | 列出可用对战格式（两个引擎合并，标注来源） |
 
 底层库在 `tools/lib.mjs`（`parseImportable` / `loadTeam` / `runBattle` / `zhToEn` / `enToZh` / `tpath`）。
@@ -161,7 +161,12 @@ Leftovers 官方「吃剩的东西」但大家都说「剩饭」；Jolly 官方�
   再叠加 `opts`（`weather` / `tailwind` / `para` / `boost` / `booster`）。
 - 踩过的坑：队文件里明明写着 `@ Choice Scarf`，`speed` 却按 309 报，
   还回了句「Iron Valiant 更快」—— **围巾土地云其实是 463，它更快**。数字就在手里却没用。
-- 自检：`node tools/_verify-core.mjs`（多段招对拍 desc + 速度修正 + 古代活性倍率，32 项断言，不联网）。
+- **戏法空间（Trick Room）用 `whoMovesFirst(a, b, { trickRoom })`，不要塞进 `finalSpeed`**：
+  它改的是【比较方向】不是速度值 —— 塞进 `finalSpeed` 会让「谁更快」的算术被污染，也会让人误以为速度变了。
+  ⚠️ **先制等级仍然优先**：戏法空间只在【同一优先级】之间反转先后，拿它跨优先级用就是错的。
+  冻风 / 电网这类降速招走 `--boost-pN -1`（不用新开关）。
+  自检里专门放了一条反面对照：「`finalSpeed` 不受 `trickRoom` 影响」——哪天有人把它塞进去，那条会红。
+- 自检：`node tools/_verify-core.mjs`（多段招对拍 desc + 速度修正 + 古代活性倍率 + 戏法空间，38 项断言，不联网）。
 
 **⚠️ 慢的不是文字，是往返**（与 toolkit 无直接关系，但影响所有「帮我看一眼」的请求）
 - 实测每回合固定消耗 15–20 秒往返。**做对战辅助时，一次给决策树，不要一回合给一手。**

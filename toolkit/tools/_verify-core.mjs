@@ -9,7 +9,7 @@
 //     队文件里写着 @ Choice Scarf 也会被无视，报出反的先后手。
 // 这个自检不联网、不调任何模型，纯本地对拍。
 import { Generations, Pokemon, Move, calculate } from '@smogon/calc';
-import { damageRolls, finalSpeed, paradoxMult } from './lib.mjs';
+import { damageRolls, finalSpeed, paradoxMult, whoMovesFirst } from './lib.mjs';
 
 const g = Generations.get(9);
 let bad = 0;
@@ -64,6 +64,20 @@ check('对面提 spd 对精神冲击无效（它打物防）', paradoxMult(null,
 check('状态招不乘', paradoxMult('atk', 'def', 'Swords Dance', 'Status') === 1);
 check('数值确实变了（不是乘了个寂寞）',
   Math.round(plain.total[1] * pmAtk) > plain.total[1], plain.total[1] + ' -> ' + Math.round(plain.total[1] * pmAtk));
+
+console.log('④ 戏法空间：只反转【先后】，不改速度值（先制招仍然优先）');
+check('正常：快的先动', whoMovesFirst(300, 200) === 'p1');
+check('戏法空间：慢的先动', whoMovesFirst(300, 200, { trickRoom: true }) === 'p2');
+check('戏法空间下，本来就慢的那只变成先动', whoMovesFirst(120, 400, { trickRoom: true }) === 'p1');
+check('平手仍然是平手（不替乱数做主）', whoMovesFirst(250, 250, { trickRoom: true }) === 'tie');
+check('速度值读不出来时不当成"谁更快"', whoMovesFirst(NaN, 200, { trickRoom: true }) === 'tie');
+{
+  // ⚠️ 关键：戏法空间【不改变 finalSpeed 的数值】—— 改的是比较方向。
+  //    如果哪天有人把它塞进 finalSpeed，下面这条会红。
+  const p = new Pokemon(g, 'Corviknight', { level: 100 });
+  const before = finalSpeed(p).effective, after = finalSpeed(p, { trickRoom: true }).effective;
+  check('finalSpeed 不受戏法空间影响（它只管速度值，不管比较方向）', before === after, before + ' vs ' + after);
+}
 
 console.log(bad ? ('\n❌ ' + bad + ' 项失败') : '\n✅ 全部通过');
 process.exit(bad ? 1 : 0);

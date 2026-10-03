@@ -257,6 +257,20 @@ export function finalSpeed(pokemon, opts = {}) {
   if (opts.booster) { v = Math.floor(v * 1.5); notes.push('充能提速×1.5'); }
   return { species: pokemon.name, base: pokemon.stats.spe, effective: v, mods: notes };
 }
+// ★ 谁先动 —— 戏法空间【反转】这条，但它改变的是【比较方向】，不是速度值本身。
+//   所以不能塞进 finalSpeed（那样会让人以为速度变了，还会污染「谁更快」的算术）。
+//   ⚠️ 先制等级仍然优先：戏法空间只在【同一优先级】之间反转先后。
+//      调用方要先把同优先级的招式挑出来，再拿这个函数比 —— 别拿它去跨优先级算。
+//   ⚠️ 也不处理「出场顺序 / 交换」这类同速平手的破平规则（Showdown 用乱数），
+//      所以平手如实返回 'tie'，不要替谁做主。
+export function whoMovesFirst(aSpeed, bSpeed, opts = {}) {
+  const a = Number(aSpeed), b = Number(bSpeed);
+  if (!Number.isFinite(a) || !Number.isFinite(b)) return 'tie';
+  if (a === b) return 'tie';
+  const normal = a > b ? 'p1' : 'p2';
+  if (!opts.trickRoom) return normal;
+  return normal === 'p1' ? 'p2' : 'p1';
+}
 export async function runBattle(sim, p1team, p2team, formatid, seed, opts = {}) {
   const { Battle, Teams } = sim;
   const b = new Battle({ formatid, seed });

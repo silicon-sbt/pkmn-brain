@@ -3,7 +3,7 @@
 // dex | move | set | calc | speed | team | sim | formats
 import { readFileSync } from 'node:fs';
 import { parseArgs } from 'node:util';
-import { parseImportable, loadTeam, runBattle, zhToEn, enToZh, zhInfo, damageRolls, finalSpeed,
+import { parseImportable, loadTeam, runBattle, zhToEn, enToZh, zhInfo, damageRolls, finalSpeed, whoMovesFirst,
   paradoxMult, PARADOX_MULT } from './lib.mjs';
 import { resolveEngine, listFormats, loadShowdown } from './engine.mjs';
 
@@ -22,6 +22,8 @@ const { values, positionals } = parseArgs({
     // 速度修正：配置里本来就有的（围巾/天气特性）现在自动读，这几个是【额外假设】
     weather: { type: 'string' }, booster: { type: 'string' },
     'boost-p1': { type: 'string' }, 'boost-p2': { type: 'string' },
+    // 戏法空间：反转先后（慢的先动）。先制等级仍然优先，只比速度。
+    'trick-room': { type: 'boolean', default: false },
     // 古代活性/夸克充能【提的是哪一项】：'atk'|'def'|'spa'|'spd'|'spe'（calc 不建，自己乘）
     'paradox-p1': { type: 'string' }, 'paradox-p2': { type: 'string' },
     engine: { type: 'string', default: 'auto' },
@@ -153,9 +155,16 @@ if (cmd === 'dex') {
   });
   const boostOf = (v) => Number(v || 0);
   const A = mod(a, 'p1', boostOf(values['boost-p1'])), B = mod(b, 'p2', boostOf(values['boost-p2']));
+  const tr = !!values['trick-room'];
+  const speedOrder = whoMovesFirst(A.effective, B.effective);          // 只按速度
+  const faster = whoMovesFirst(A.effective, B.effective, { trickRoom: tr });
   out({ p1: A, p2: B,
-    faster: A.effective > B.effective ? 'p1' : B.effective > A.effective ? 'p2' : 'tie',
-    note: 'effective 已含配置里的讲究围巾/天气特性；opts 里含 --scarf/--tailwind/--para/--weather/--booster/--boost-pN' });
+    faster,
+    // 两个都给出：speedOrder 是不带戏法空间的原始快慢，方便对照
+    speedOrder,
+    trickRoom: tr || undefined,
+    note: 'effective 已含配置里的讲究围巾/天气特性；opts 里含 --scarf/--tailwind/--para/--weather/--booster/--boost-pN'
+      + (tr ? '；已按【戏法空间】反转先后（慢的先动）—— 注意【先制招仍然优先】，这里只比速度，别拿它跨优先级用' : '') });
 } else if (cmd === 'team') {
   const team = loadTeam(positionals[0]);
   const { sim, name } = await resolveEngine({ format: values.format, engine: values.engine });
@@ -211,7 +220,9 @@ if (cmd === 'dex') {
   item  <名称>                             道具资料（支持中文，如 剩饭）
   set   <队伍文件>                         解析 importable 队伍（支持中文队伍文本）
   calc  --attacker X --defender Y --move Z 伤害计算（支持中文；双打加 --doubles）
-  speed --attacker X --defender Y          速度对比（--scarf p1 --tailwind p2 --para p1）
+  speed --attacker X --defender Y          速度对比（--scarf p1 --tailwind p2 --para p1 --trick-room）
+                                             ⚠️ 冻风/电网这类【降速招】用 --boost-p2 -1 表达
+                                             ⚠️ --trick-room 只反转速度先后，先制招仍然优先
   team  <队伍文件> --format <格式>         队伍合法性校验
   sim   --p1 a.txt --p2 b.txt --n 100      蒙特卡洛胜率
   formats [关键词]                         列出可用对战格式（两个引擎合并）
